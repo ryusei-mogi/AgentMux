@@ -1,0 +1,31 @@
+name: Feature Request
+description: Suggest a new capability or improvement.
+title: '[Feature]: '
+labels:
+  - 'type: feature'
+  - 'status: needs-triage'
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What behavior or API would you like?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Existing workarounds or other designs considered.
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional Context
+      description: Links, examples, or constraints. Do not include secrets.
