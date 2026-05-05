@@ -2,6 +2,7 @@ node_modules/
 dist/
 coverage/
 *.log
+*.tgz
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
