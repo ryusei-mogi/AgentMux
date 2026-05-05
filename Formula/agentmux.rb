@@ -8,7 +8,7 @@ class Agentmux < Formula
   depends_on "node"
 
   def install
-    system "npm", "install", *Language::Node.std_npm_install_args(libexec)
+    system "npm", "install", *std_npm_args(prefix: libexec, ignore_scripts: false)
     bin.install_symlink libexec/"bin/agentmux"
   end
 
