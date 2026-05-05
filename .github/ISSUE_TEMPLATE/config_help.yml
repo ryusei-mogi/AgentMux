@@ -1,0 +1,29 @@
+name: Configuration Help
+description: Ask for help with routing, providers, or client setup.
+title: '[Config]: '
+labels:
+  - 'area: config'
+  - 'status: needs-triage'
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use placeholders for keys and remove any private prompts or account details.
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What are you trying to configure?
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Sanitized Config
+      description: Paste the smallest relevant YAML or client config with placeholders.
+      render: yaml
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Current Behavior
+      description: What happens now?
