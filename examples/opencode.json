@@ -1,0 +1,25 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "agentmux": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "AgentMux (OpenCode Go pool)",
+      "options": {
+        "baseURL": "http://127.0.0.1:8787/v1"
+      },
+      "models": {
+        "deepseek-chat": {
+          "name": "DeepSeek Chat via AgentMux"
+        },
+        "qwen-coder": {
+          "name": "Qwen Coder via AgentMux"
+        },
+        "kimi-k2": {
+          "name": "Kimi K2 via AgentMux"
+        }
+      }
+    }
+  },
+  "model": "agentmux/deepseek-chat",
+  "small_model": "agentmux/deepseek-chat"
+}

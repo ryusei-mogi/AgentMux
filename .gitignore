@@ -1,0 +1,17 @@
+node_modules/
+dist/
+coverage/
+*.log
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.env
+.env.*
+!.env.example
+accounts.env
+accounts.env.*
+!examples/accounts.env.example
+.DS_Store
+.agentmux/
+.oc-router/
+.sisyphus/
