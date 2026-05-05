@@ -1,0 +1,70 @@
+{
+  "name": "agentmux",
+  "version": "0.3.0",
+  "description": "Quota-aware local OpenAI-compatible LLM gateway for coding agents.",
+  "type": "module",
+  "bin": {
+    "agentmux": "./dist/cli.js",
+    "oc-router": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "examples",
+    "README.md",
+    "SECURITY.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js serve",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "format": "prettier --check .",
+    "check:oss-safety": "node scripts/check-oss-safety.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ryusei-mogi/AgentMux.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ryusei-mogi/AgentMux/issues"
+  },
+  "homepage": "https://github.com/ryusei-mogi/AgentMux#readme",
+  "keywords": [
+    "agentmux",
+    "llm",
+    "openai",
+    "router",
+    "coding-agent",
+    "quota",
+    "gateway"
+  ],
+  "author": "Ryusei Mogi",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.14.1",
+    "better-sqlite3": "^11.10.0",
+    "commander": "^13.1.0",
+    "gpt-tokenizer": "^2.9.0",
+    "hono": "^4.7.7",
+    "pino": "^9.6.0",
+    "yaml": "^2.7.1",
+    "zod": "^3.24.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.25.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.14.1",
+    "eslint": "^9.25.0",
+    "prettier": "^3.5.3",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.30.1",
+    "vitest": "^3.1.1"
+  }
+}

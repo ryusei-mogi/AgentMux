@@ -1,0 +1,60 @@
+server:
+  host: 127.0.0.1
+  port: 8787
+  api_key_env: AGENTMUX_API_KEY
+  allow_unauthenticated: false
+  cors_origins: []
+database:
+  path: ~/.agentmux/usage.sqlite
+routing:
+  default_strategy: quota_aware
+  retry_attempts: 3
+  request_timeout_seconds: 120
+  cooldown:
+    rate_limit_seconds: 900
+    server_error_seconds: 300
+    timeout_seconds: 180
+models:
+  deepseek-chat:
+    upstreams: [opencode-go-a, opencode-go-b, opencode-go-c]
+  qwen-coder:
+    upstreams: [opencode-go-a, opencode-go-b, opencode-go-c]
+  kimi-k2:
+    upstreams: [opencode-go-a, opencode-go-b, opencode-go-c]
+upstreams:
+  - id: opencode-go-a
+    type: openai-compatible
+    base_url: https://opencode.ai/zen/go/v1
+    api_key_env: OPENCODE_GO_A_KEY
+    strategy_weight: 1
+    budget:
+      window: 5h
+      limit_usd: 12
+    models:
+      deepseek-chat: deepseek-chat
+      qwen-coder: qwen-coder
+      kimi-k2: kimi-k2
+  - id: opencode-go-b
+    type: openai-compatible
+    base_url: https://opencode.ai/zen/go/v1
+    api_key_env: OPENCODE_GO_B_KEY
+    strategy_weight: 1
+    budget:
+      window: 5h
+      limit_usd: 12
+    models:
+      deepseek-chat: deepseek-chat
+      qwen-coder: qwen-coder
+      kimi-k2: kimi-k2
+  - id: opencode-go-c
+    type: openai-compatible
+    base_url: https://opencode.ai/zen/go/v1
+    api_key_env: OPENCODE_GO_C_KEY
+    strategy_weight: 1
+    budget:
+      window: 5h
+      limit_usd: 12
+    models:
+      deepseek-chat: deepseek-chat
+      qwen-coder: qwen-coder
+      kimi-k2: kimi-k2

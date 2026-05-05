@@ -1,0 +1,112 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { loadConfig, writeDefaultConfig } from '../src/config.js';
+
+describe('config', () => {
+  it('writes and loads the default config', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'agentmux-config-'));
+    try {
+      const path = join(dir, 'agentmux.yaml');
+      writeDefaultConfig(path);
+      const config = loadConfig(path);
+      expect(config.server.port).toBe(8787);
+      expect(config.server.api_key).toMatch(/^agmx_/);
+      expect(config.routing.default_strategy).toBe('quota_aware');
+      expect(config.models['deepseek-chat']?.upstreams.length).toBeGreaterThan(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('resolves the server API key from an environment variable', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'agentmux-config-'));
+    const envName = 'AGENTMUX_TEST_API_KEY';
+    const previous = process.env[envName];
+    process.env[envName] = 'test-server-key-that-is-long-enough';
+    try {
+      const path = join(dir, 'agentmux.yaml');
+      writeFileSync(
+        path,
+        [
+          'server:',
+          '  host: 127.0.0.1',
+          '  port: 8787',
+          `  api_key_env: ${envName}`,
+          'database:',
+          `  path: ${join(dir, 'usage.sqlite')}`,
+          'routing:',
+          '  default_strategy: quota_aware',
+          '  retry_attempts: 3',
+          '  request_timeout_seconds: 120',
+          '  cooldown:',
+          '    rate_limit_seconds: 900',
+          '    server_error_seconds: 300',
+          '    timeout_seconds: 180',
+          'models:',
+          '  test-model:',
+          '    upstreams: [test-upstream]',
+          'upstreams:',
+          '  - id: test-upstream',
+          '    type: openai-compatible',
+          '    base_url: https://example.com/v1',
+          '    api_key_env: UPSTREAM_TEST_API_KEY',
+          '    strategy_weight: 1',
+          '    models:',
+          '      test-model: upstream-model',
+          ''
+        ].join('\n'),
+        'utf8'
+      );
+      const config = loadConfig(path);
+      expect(config.server.api_key).toBe(process.env[envName]);
+    } finally {
+      if (previous === undefined) delete process.env[envName];
+      else process.env[envName] = previous;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects placeholder server API keys', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'agentmux-config-'));
+    try {
+      const path = join(dir, 'agentmux.yaml');
+      writeFileSync(path, minimalConfig('replace-with-a-random-32-byte-local-token', dir), 'utf8');
+      expect(() => loadConfig(path)).toThrow(/private random value/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+function minimalConfig(apiKey: string, dir: string): string {
+  return [
+    'server:',
+    '  host: 127.0.0.1',
+    '  port: 8787',
+    `  api_key: ${apiKey}`,
+    'database:',
+    `  path: ${join(dir, 'usage.sqlite')}`,
+    'routing:',
+    '  default_strategy: quota_aware',
+    '  retry_attempts: 3',
+    '  request_timeout_seconds: 120',
+    '  cooldown:',
+    '    rate_limit_seconds: 900',
+    '    server_error_seconds: 300',
+    '    timeout_seconds: 180',
+    'models:',
+    '  test-model:',
+    '    upstreams: [test-upstream]',
+    'upstreams:',
+    '  - id: test-upstream',
+    '    type: openai-compatible',
+    '    base_url: https://example.com/v1',
+    '    api_key_env: UPSTREAM_TEST_API_KEY',
+    '    strategy_weight: 1',
+    '    models:',
+    '      test-model: upstream-model',
+    ''
+  ].join('\n');
+}
