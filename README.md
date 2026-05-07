@@ -20,7 +20,7 @@ It tracks local usage, estimates remaining quota, avoids unhealthy upstreams, an
 ## Install
 
 ```bash
-npm install -g https://github.com/ryusei-mogi/AgentMux/releases/download/v0.3.0/ryusei-mogi-agentmux-0.3.0.tgz
+npm install -g https://github.com/ryusei-mogi/AgentMux/releases/download/v0.4.0/ryusei-mogi-agentmux-0.4.0.tgz
 ```
 
 Or with Homebrew:

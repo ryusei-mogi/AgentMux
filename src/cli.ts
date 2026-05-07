@@ -15,7 +15,7 @@ const program = new Command();
 program
   .name('agentmux')
   .description('Quota-aware local OpenAI-compatible LLM gateway.')
-  .version('0.3.0');
+  .version('0.4.0');
 
 program
   .command('init')
