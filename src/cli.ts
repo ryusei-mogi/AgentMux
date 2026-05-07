@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import { Command } from 'commander';
@@ -121,9 +121,8 @@ if (isDirectRun()) {
   });
 }
 
-function isDirectRun(): boolean {
-  const entry = process.argv[1];
-  return entry ? fileURLToPath(import.meta.url) === resolve(entry) : false;
+export function isDirectRun(entry = process.argv[1], moduleUrl = import.meta.url): boolean {
+  return entry ? realpathSync(fileURLToPath(moduleUrl)) === realpathSync(resolve(entry)) : false;
 }
 
 function printStatus(config: ReturnType<typeof loadConfig>, store: UsageStore): void {

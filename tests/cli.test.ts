@@ -1,8 +1,9 @@
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
-import { createProgram, main } from '../src/cli.js';
+import { createProgram, isDirectRun, main } from '../src/cli.js';
 
 describe('CLI program', () => {
   it('prints presets and config examples', async () => {
@@ -95,6 +96,18 @@ describe('CLI program', () => {
       expect(log.mock.calls.at(-1)?.[0]).toContain('openai');
     } finally {
       log.mockRestore();
+    }
+  });
+
+  it('detects direct execution through symlinked package bins', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'agentmux-cli-'));
+    try {
+      const cliPath = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
+      const binPath = join(dir, 'agentmux');
+      symlinkSync(cliPath, binPath);
+      expect(isDirectRun(binPath, pathToFileURL(cliPath).href)).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });
