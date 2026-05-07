@@ -4,8 +4,8 @@
   "description": "Quota-aware local OpenAI-compatible LLM gateway for coding agents.",
   "type": "module",
   "bin": {
-    "agentmux": "./dist/cli.js",
-    "oc-router": "./dist/cli.js"
+    "agentmux": "dist/cli.js",
+    "oc-router": "dist/cli.js"
   },
   "files": [
     "dist",
