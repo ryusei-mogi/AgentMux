@@ -1,6 +1,6 @@
 {
   "name": "@ryusei-mogi/agentmux",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Quota-aware local OpenAI-compatible LLM gateway for coding agents.",
   "type": "module",
   "bin": {

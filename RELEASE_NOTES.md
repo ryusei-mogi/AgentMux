@@ -1,10 +1,19 @@
-# Release Notes - v0.5.0
+# Release Notes - v0.5.1
 
-## Highlights
+## Hotfix
+
+v0.5.1 is a packaging bugfix release on top of v0.5.0.
+
+- Fixed npm and Homebrew package bin execution when `agentmux` is launched through an installed symlink.
+- Updated the Homebrew formula so same-day installs can resolve the previous Hono patch release while Homebrew's npm dependency age gate is active.
+
+## v0.5.0 Highlights
+
+### Highlights
 
 AgentMux can now route across a broader set of upstream types while preserving the local OpenAI-compatible API surface. This update adds native Anthropic Messages API support, local CLI backend routing for tools such as Codex CLI and Claude Code, and richer examples for multi-key / multi-provider quota-aware routing.
 
-## Added
+### Added
 
 - Added native `anthropic-messages` upstreams.
   - Converts local `/v1/chat/completions` requests into Anthropic Messages API requests.
@@ -24,7 +33,7 @@ AgentMux can now route across a broader set of upstream types while preserving t
   - Covers OpenAI projects, Anthropic accounts, OpenRouter, DeepSeek, Codex CLI profiles, and Claude Code profiles.
 - Extended `examples/accounts.env.example` with multi-provider API key and CLI profile examples.
 
-## Changed
+### Changed
 
 - Generalized upstream configuration from an OpenAI-compatible-only shape into typed upstream variants: `openai-compatible`, `anthropic-messages`, and `cli-backend`.
 - Expands `~` in CLI backend `command`, `cwd`, and configured `env` values during config loading.
@@ -33,7 +42,7 @@ AgentMux can now route across a broader set of upstream types while preserving t
   - Allows cooldowns to honor `Retry-After`, OpenAI rate-limit reset headers, and Anthropic rate-limit reset headers before falling back to configured cooldown durations.
 - Updated the README with multi-key / multi-provider routing, Anthropic upstream configuration, CLI backend configuration, and the privacy boundary that AgentMux does not read browser cookies, browser profiles, or private web app session stores.
 
-## Tests
+### Tests
 
 - Added config coverage for the new multi-account example and CLI backend path expansion.
 - Added routing coverage for mixing CLI backends with HTTP upstreams.
@@ -48,7 +57,7 @@ AgentMux can now route across a broader set of upstream types while preserving t
   - serialized CLI backend execution,
   - `Retry-After` based cooldowns.
 
-## Compatibility Notes
+### Compatibility Notes
 
 - Existing `openai-compatible` upstreams remain supported.
 - Anthropic and CLI upstreams are exposed through AgentMux's local OpenAI-compatible API, but provider-specific features are only normalized when they map cleanly to OpenAI chat completions.

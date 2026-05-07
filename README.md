@@ -38,7 +38,7 @@ npm install -g @ryusei-mogi/agentmux
 Or install the GitHub release tarball directly:
 
 ```bash
-npm install -g https://github.com/ryusei-mogi/AgentMux/releases/download/v0.5.0/ryusei-mogi-agentmux-0.5.0.tgz
+npm install -g https://github.com/ryusei-mogi/AgentMux/releases/download/v0.5.1/ryusei-mogi-agentmux-0.5.1.tgz
 ```
 
 Or with Homebrew:
