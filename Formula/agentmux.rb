@@ -2,7 +2,7 @@ class Agentmux < Formula
   desc "Quota-aware local OpenAI-compatible LLM gateway for coding agents"
   homepage "https://github.com/ryusei-mogi/AgentMux"
   url "https://github.com/ryusei-mogi/AgentMux/releases/download/v0.4.0/ryusei-mogi-agentmux-0.4.0.tgz"
-  sha256 "a0a792071128e81ee5be9f165f8dc41782e387223afab76c4a045291302993a2"
+  sha256 "b4b4322c40948f884ca29bad2f72b9cded29957e5bbbc00a498d17850884a7ca"
   license "MIT"
 
   depends_on "node"

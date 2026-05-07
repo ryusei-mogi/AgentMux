@@ -20,6 +20,12 @@ It tracks local usage, estimates remaining quota, avoids unhealthy upstreams, an
 ## Install
 
 ```bash
+npm install -g @ryusei-mogi/agentmux
+```
+
+Or install the GitHub release tarball directly:
+
+```bash
 npm install -g https://github.com/ryusei-mogi/AgentMux/releases/download/v0.4.0/ryusei-mogi-agentmux-0.4.0.tgz
 ```
 
@@ -29,7 +35,7 @@ Or with Homebrew:
 brew install ryusei-mogi/AgentMux/agentmux
 ```
 
-The npm registry name `agentmux` is owned by a different project, so install from the GitHub release tarball for now. The package still exposes an `oc-router` binary alias for early users, but new docs use `agentmux`.
+The unscoped npm registry name `agentmux` is owned by a different project, so use the scoped package name. The package still exposes an `oc-router` binary alias for early users, but new docs use `agentmux`.
 
 For local development:
 
