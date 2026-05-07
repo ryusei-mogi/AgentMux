@@ -10,6 +10,8 @@ export type RoutingStrategy =
 
 export type BudgetWindow = 'daily' | 'weekly' | 'monthly' | `${number}h`;
 
+export type UpstreamType = 'openai-compatible' | 'anthropic-messages' | 'cli-backend';
+
 export interface ServerConfig {
   host: string;
   port: number;
@@ -45,17 +47,54 @@ export interface UpstreamPricingConfig {
   cached_input_per_million?: number | undefined;
 }
 
-export interface UpstreamConfig {
+export interface BaseUpstreamConfig {
   id: string;
-  type: 'openai-compatible';
-  base_url: string;
-  api_key_env?: string | undefined;
-  api_key?: string | undefined;
+  type: UpstreamType;
   strategy_weight: number;
   budget?: UpstreamBudgetConfig | undefined;
   pricing?: UpstreamPricingConfig | undefined;
   models: Record<string, string>;
 }
+
+export interface HttpUpstreamConfig extends BaseUpstreamConfig {
+  base_url: string;
+  api_key_env?: string | undefined;
+  api_key?: string | undefined;
+  headers?: Record<string, string> | undefined;
+  header_env?: Record<string, string> | undefined;
+}
+
+export interface OpenAICompatibleUpstreamConfig extends HttpUpstreamConfig {
+  type: 'openai-compatible';
+}
+
+export interface AnthropicMessagesUpstreamConfig extends HttpUpstreamConfig {
+  type: 'anthropic-messages';
+  anthropic_version?: string | undefined;
+  default_max_tokens?: number | undefined;
+}
+
+export type CliBackendInputMode = 'arg' | 'stdin';
+export type CliBackendOutputMode = 'text' | 'json' | 'jsonl';
+
+export interface CliBackendUpstreamConfig extends BaseUpstreamConfig {
+  type: 'cli-backend';
+  command: string;
+  args?: string[] | undefined;
+  env?: Record<string, string> | undefined;
+  env_unset?: string[] | undefined;
+  cwd?: string | undefined;
+  input?: CliBackendInputMode | undefined;
+  output?: CliBackendOutputMode | undefined;
+  model_arg?: string | undefined;
+  timeout_seconds?: number | undefined;
+  serialize?: boolean | undefined;
+}
+
+export type UpstreamConfig =
+  | OpenAICompatibleUpstreamConfig
+  | AnthropicMessagesUpstreamConfig
+  | CliBackendUpstreamConfig;
 
 export interface ModelRouteConfig {
   upstreams: string[];

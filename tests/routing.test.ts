@@ -21,6 +21,30 @@ describe('RouterEngine', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('routes CLI backends alongside HTTP upstreams', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'agentmux-routing-'));
+    const store = new UsageStore(join(dir, 'usage.sqlite'));
+    try {
+      const config = fixtureConfig();
+      config.models['test-model'] = { upstreams: ['a', 'cli-a'], strategy: 'fallback' };
+      config.upstreams.push({
+        id: 'cli-a',
+        type: 'cli-backend',
+        command: 'codex',
+        args: ['exec', '--json'],
+        output: 'jsonl',
+        strategy_weight: 1,
+        models: { 'test-model': 'gpt-5.4' }
+      });
+      const candidates = new RouterEngine(config, store).select('test-model');
+      expect(candidates.map((candidate) => candidate.upstream.id)).toEqual(['a', 'cli-a']);
+      expect(candidates[1]?.upstreamModel).toBe('gpt-5.4');
+    } finally {
+      store.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 function fixtureConfig(): AppConfig {

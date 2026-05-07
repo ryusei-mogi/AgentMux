@@ -1,6 +1,29 @@
-import type { UpstreamConfig } from './types.js';
+import type {
+  AnthropicMessagesUpstreamConfig,
+  CliBackendUpstreamConfig,
+  OpenAICompatibleUpstreamConfig
+} from './types.js';
 
-export const providerPresets: Record<string, Omit<UpstreamConfig, 'id' | 'models'>> = {
+type ProviderPreset =
+  | Omit<OpenAICompatibleUpstreamConfig, 'id' | 'models'>
+  | Omit<AnthropicMessagesUpstreamConfig, 'id' | 'models'>
+  | Omit<CliBackendUpstreamConfig, 'id' | 'models'>;
+
+export const providerPresets: Record<string, ProviderPreset> = {
+  openai: {
+    type: 'openai-compatible',
+    base_url: 'https://api.openai.com/v1',
+    api_key_env: 'OPENAI_API_KEY',
+    strategy_weight: 1
+  },
+  anthropic: {
+    type: 'anthropic-messages',
+    base_url: 'https://api.anthropic.com/v1',
+    api_key_env: 'ANTHROPIC_API_KEY',
+    anthropic_version: '2023-06-01',
+    default_max_tokens: 4096,
+    strategy_weight: 1
+  },
   'opencode-go': {
     type: 'openai-compatible',
     base_url: 'https://opencode.ai/zen/go/v1',
@@ -37,6 +60,28 @@ export const providerPresets: Record<string, Omit<UpstreamConfig, 'id' | 'models
     base_url: 'https://zenrouter.net/api/v1',
     api_key_env: 'ZEN_API_KEY',
     strategy_weight: 0.5
+  },
+  'codex-cli': {
+    type: 'cli-backend',
+    command: 'codex',
+    args: ['exec', '--json', '--color', 'never', '--skip-git-repo-check'],
+    model_arg: '--model',
+    input: 'arg',
+    output: 'jsonl',
+    env_unset: ['OPENAI_API_KEY'],
+    serialize: true,
+    strategy_weight: 1
+  },
+  'claude-cli': {
+    type: 'cli-backend',
+    command: 'claude',
+    args: ['-p', '--output-format', 'json', '--no-session-persistence'],
+    model_arg: '--model',
+    input: 'arg',
+    output: 'json',
+    env_unset: ['ANTHROPIC_API_KEY'],
+    serialize: true,
+    strategy_weight: 1
   }
 };
 

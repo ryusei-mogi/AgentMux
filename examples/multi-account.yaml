@@ -1,0 +1,180 @@
+server:
+  host: 127.0.0.1
+  port: 8787
+  api_key_env: AGENTMUX_API_KEY
+  allow_unauthenticated: false
+  cors_origins: []
+database:
+  path: ~/.agentmux/usage.sqlite
+routing:
+  default_strategy: quota_aware
+  retry_attempts: 3
+  request_timeout_seconds: 120
+  cooldown:
+    rate_limit_seconds: 900
+    server_error_seconds: 300
+    timeout_seconds: 180
+models:
+  gpt-4.1-mini:
+    upstreams: [openai-project-a, openai-project-b, openrouter-gpt]
+    strategy: quota_aware
+  claude-sonnet:
+    upstreams: [anthropic-account-a, anthropic-account-b, openrouter-claude]
+    strategy: quota_aware
+  deepseek-chat:
+    upstreams: [deepseek-direct, openrouter-deepseek]
+    strategy: quota_aware
+  codex-chat:
+    upstreams: [codex-main, codex-sub]
+    strategy: quota_aware
+  claude-code:
+    upstreams: [claude-main, claude-sub]
+    strategy: fallback
+upstreams:
+  - id: openai-project-a
+    type: openai-compatible
+    base_url: https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY_A
+    header_env:
+      OpenAI-Organization: OPENAI_ORG_A
+      OpenAI-Project: OPENAI_PROJECT_A
+    strategy_weight: 1
+    budget:
+      window: daily
+      limit_usd: 15
+    models:
+      gpt-4.1-mini: gpt-4.1-mini
+  - id: openai-project-b
+    type: openai-compatible
+    base_url: https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY_B
+    header_env:
+      OpenAI-Organization: OPENAI_ORG_B
+      OpenAI-Project: OPENAI_PROJECT_B
+    strategy_weight: 1
+    budget:
+      window: daily
+      limit_usd: 15
+    models:
+      gpt-4.1-mini: gpt-4.1-mini
+  - id: anthropic-account-a
+    type: anthropic-messages
+    base_url: https://api.anthropic.com/v1
+    api_key_env: ANTHROPIC_API_KEY_A
+    anthropic_version: '2023-06-01'
+    default_max_tokens: 4096
+    strategy_weight: 1
+    budget:
+      window: daily
+      limit_usd: 15
+    models:
+      claude-sonnet: claude-sonnet-4-5
+  - id: anthropic-account-b
+    type: anthropic-messages
+    base_url: https://api.anthropic.com/v1
+    api_key_env: ANTHROPIC_API_KEY_B
+    anthropic_version: '2023-06-01'
+    default_max_tokens: 4096
+    strategy_weight: 1
+    budget:
+      window: daily
+      limit_usd: 15
+    models:
+      claude-sonnet: claude-sonnet-4-5
+  - id: openrouter-gpt
+    type: openai-compatible
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: OPENROUTER_API_KEY
+    headers:
+      HTTP-Referer: http://127.0.0.1:8787
+      X-Title: AgentMux
+    strategy_weight: 0.5
+    models:
+      gpt-4.1-mini: openai/gpt-4.1-mini
+  - id: openrouter-claude
+    type: openai-compatible
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: OPENROUTER_API_KEY
+    headers:
+      HTTP-Referer: http://127.0.0.1:8787
+      X-Title: AgentMux
+    strategy_weight: 0.5
+    models:
+      claude-sonnet: anthropic/claude-sonnet-4.5
+  - id: deepseek-direct
+    type: openai-compatible
+    base_url: https://api.deepseek.com/v1
+    api_key_env: DEEPSEEK_API_KEY
+    strategy_weight: 1
+    pricing:
+      input_per_million: 0.27
+      output_per_million: 1.1
+      cached_input_per_million: 0.07
+    models:
+      deepseek-chat: deepseek-chat
+  - id: openrouter-deepseek
+    type: openai-compatible
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: OPENROUTER_API_KEY
+    headers:
+      HTTP-Referer: http://127.0.0.1:8787
+      X-Title: AgentMux
+    strategy_weight: 0.5
+    models:
+      deepseek-chat: deepseek/deepseek-chat
+  - id: codex-main
+    type: cli-backend
+    command: codex
+    args: ['exec', '--json', '--color', 'never', '--skip-git-repo-check']
+    model_arg: '--model'
+    input: arg
+    output: jsonl
+    env:
+      CODEX_HOME: ~/.codex-main
+    env_unset: [OPENAI_API_KEY]
+    serialize: true
+    strategy_weight: 1
+    models:
+      codex-chat: gpt-5.4
+  - id: codex-sub
+    type: cli-backend
+    command: codex
+    args: ['exec', '--json', '--color', 'never', '--skip-git-repo-check']
+    model_arg: '--model'
+    input: arg
+    output: jsonl
+    env:
+      CODEX_HOME: ~/.codex-sub
+    env_unset: [OPENAI_API_KEY]
+    serialize: true
+    strategy_weight: 1
+    models:
+      codex-chat: gpt-5.4
+  - id: claude-main
+    type: cli-backend
+    command: claude
+    args: ['-p', '--output-format', 'json', '--no-session-persistence']
+    model_arg: '--model'
+    input: arg
+    output: json
+    env:
+      CLAUDE_CONFIG_DIR: ~/.claude-main
+    env_unset: [ANTHROPIC_API_KEY]
+    serialize: true
+    strategy_weight: 1
+    models:
+      claude-code: sonnet
+  - id: claude-sub
+    type: cli-backend
+    command: claude
+    args: ['-p', '--output-format', 'json', '--no-session-persistence']
+    model_arg: '--model'
+    input: arg
+    output: json
+    env:
+      CLAUDE_CONFIG_DIR: ~/.claude-sub
+    env_unset: [ANTHROPIC_API_KEY]
+    serialize: true
+    strategy_weight: 1
+    models:
+      claude-code: sonnet

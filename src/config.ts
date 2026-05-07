@@ -14,33 +14,77 @@ const routingStrategySchema = z.enum([
   'quota_aware'
 ]);
 
-const upstreamSchema = z
+const budgetSchema = z
   .object({
-    id: z.string().min(1),
-    type: z.literal('openai-compatible').default('openai-compatible'),
-    base_url: z.string().url(),
-    api_key_env: z.string().min(1).optional(),
-    api_key: z.string().min(1).optional(),
-    strategy_weight: z.number().positive().default(1),
-    budget: z
-      .object({
-        window: z.union([
-          z.enum(['daily', 'weekly', 'monthly']),
-          z.custom<`${number}h`>((v) => /^\d+h$/.test(String(v)))
-        ]),
-        limit_usd: z.number().positive()
-      })
-      .optional(),
-    pricing: z
-      .object({
-        input_per_million: z.number().nonnegative().optional(),
-        output_per_million: z.number().nonnegative().optional(),
-        cached_input_per_million: z.number().nonnegative().optional()
-      })
-      .optional(),
-    models: z.record(z.string().min(1), z.string().min(1))
+    window: z.union([
+      z.enum(['daily', 'weekly', 'monthly']),
+      z.custom<`${number}h`>((v) => /^\d+h$/.test(String(v)))
+    ]),
+    limit_usd: z.number().positive()
+  })
+  .optional();
+
+const pricingSchema = z
+  .object({
+    input_per_million: z.number().nonnegative().optional(),
+    output_per_million: z.number().nonnegative().optional(),
+    cached_input_per_million: z.number().nonnegative().optional()
+  })
+  .optional();
+
+const baseUpstreamFields = {
+  id: z.string().min(1),
+  strategy_weight: z.number().positive().default(1),
+  budget: budgetSchema,
+  pricing: pricingSchema,
+  models: z.record(z.string().min(1), z.string().min(1))
+};
+
+const httpUpstreamFields = {
+  ...baseUpstreamFields,
+  base_url: z.string().url(),
+  api_key_env: z.string().min(1).optional(),
+  api_key: z.string().min(1).optional(),
+  headers: z.record(z.string().min(1), z.string().min(1)).optional(),
+  header_env: z.record(z.string().min(1), z.string().min(1)).optional()
+};
+
+const openAICompatibleUpstreamSchema = z
+  .object({
+    ...httpUpstreamFields,
+    type: z.literal('openai-compatible').default('openai-compatible')
   })
   .refine((u) => u.api_key_env || u.api_key, 'upstream must define api_key_env or api_key');
+
+const anthropicMessagesUpstreamSchema = z
+  .object({
+    ...httpUpstreamFields,
+    type: z.literal('anthropic-messages'),
+    anthropic_version: z.string().min(1).optional(),
+    default_max_tokens: z.number().int().positive().optional()
+  })
+  .refine((u) => u.api_key_env || u.api_key, 'upstream must define api_key_env or api_key');
+
+const cliBackendUpstreamSchema = z.object({
+  ...baseUpstreamFields,
+  type: z.literal('cli-backend'),
+  command: z.string().min(1),
+  args: z.array(z.string()).default([]),
+  env: z.record(z.string().min(1), z.string()).optional(),
+  env_unset: z.array(z.string().min(1)).default([]),
+  cwd: z.string().min(1).optional(),
+  input: z.enum(['arg', 'stdin']).default('arg'),
+  output: z.enum(['text', 'json', 'jsonl']).default('text'),
+  model_arg: z.string().min(1).optional(),
+  timeout_seconds: z.number().int().positive().optional(),
+  serialize: z.boolean().default(false)
+});
+
+const upstreamSchema = z.union([
+  openAICompatibleUpstreamSchema,
+  anthropicMessagesUpstreamSchema,
+  cliBackendUpstreamSchema
+]);
 
 export const appConfigSchema = z.object({
   server: z.object({
@@ -82,7 +126,20 @@ export function loadConfig(path = defaultConfigPath()): AppConfig {
   return {
     ...config,
     server: { ...config.server, api_key: apiKey },
-    database: { path: expandHome(config.database.path) }
+    database: { path: expandHome(config.database.path) },
+    upstreams: config.upstreams.map((upstream) => {
+      if (upstream.type !== 'cli-backend') return upstream;
+      return {
+        ...upstream,
+        command: expandHome(upstream.command),
+        cwd: upstream.cwd ? expandHome(upstream.cwd) : undefined,
+        env: upstream.env
+          ? Object.fromEntries(
+              Object.entries(upstream.env).map(([name, value]) => [name, expandHome(value)])
+            )
+          : undefined
+      };
+    })
   };
 }
 
