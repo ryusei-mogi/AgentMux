@@ -64,7 +64,7 @@ AgentMux は Node.js `>=22.13` が必要です。
 ### GitHub Release tarball
 
 ```bash
-npm install -g https://github.com/ryusei-mogi/AgentMux/releases/download/v0.4.0/ryusei-mogi-agentmux-0.4.0.tgz
+npm install -g https://github.com/ryusei-mogi/AgentMux/releases/download/v0.5.0/ryusei-mogi-agentmux-0.5.0.tgz
 agentmux --version
 ```
 

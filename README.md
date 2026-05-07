@@ -18,6 +18,9 @@ If you are setting up AgentMux for the first time, start with the documentation 
 - OpenAI-compatible `GET /v1/models` and `POST /v1/chat/completions`
 - Non-streaming and streaming chat completion proxying
 - Multiple OpenAI-compatible upstreams and model aliases
+- Native Anthropic Messages upstreams exposed through the local OpenAI-compatible API
+- Local CLI backend upstreams for Codex CLI, Claude Code, and other text-producing AI CLIs
+- Per-upstream custom headers and header environment variables for provider projects, orgs, and attribution
 - SQLite usage tracking for tokens, estimated cost, latency, and status
 - Routing strategies: `least_used`, `round_robin`, `weighted_round_robin`, `cheapest`, `fallback`, `quota_aware`
 - Circuit breaker states: `healthy`, `cooldown`, `probation`, `disabled`
@@ -35,7 +38,7 @@ npm install -g @ryusei-mogi/agentmux
 Or install the GitHub release tarball directly:
 
 ```bash
-npm install -g https://github.com/ryusei-mogi/AgentMux/releases/download/v0.4.0/ryusei-mogi-agentmux-0.4.0.tgz
+npm install -g https://github.com/ryusei-mogi/AgentMux/releases/download/v0.5.0/ryusei-mogi-agentmux-0.5.0.tgz
 ```
 
 Or with Homebrew:
@@ -88,6 +91,7 @@ model: deepseek-chat
 - CORS is disabled by default. Add trusted origins to `server.cors_origins` only when a browser client needs them.
 - The dashboard is rendered without third-party scripts.
 - `.env`, `accounts.env`, SQLite databases, logs, `dist/`, and `node_modules/` are ignored.
+- AgentMux does not read browser cookies, browser profiles, or private web app session stores.
 
 Never commit real provider keys. Tracked files should only contain placeholders such as `sk-...`.
 
@@ -129,6 +133,83 @@ routing:
     server_error_seconds: 300
     timeout_seconds: 180
 ```
+
+## Multi-Key and Multi-Provider Routing
+
+AgentMux can register multiple official API upstreams and route across them. This includes OpenAI API keys from different projects or organizations, Anthropic API keys, OpenRouter, DeepSeek, and other OpenAI-compatible providers. It does not automate browser ChatGPT or Claude web accounts, cookies, or sessions.
+
+See [examples/multi-account.yaml](examples/multi-account.yaml) for a config that combines:
+
+- `OPENAI_API_KEY_A` and `OPENAI_API_KEY_B` with `OpenAI-Organization` and `OpenAI-Project` headers
+- `ANTHROPIC_API_KEY_A` and `ANTHROPIC_API_KEY_B` through native Anthropic Messages API upstreams
+- OpenRouter and DeepSeek fallback upstreams
+
+Anthropic upstreams use `type: anthropic-messages` and are converted to and from AgentMux's local OpenAI-compatible `/v1/chat/completions` API:
+
+```yaml
+models:
+  claude-sonnet:
+    upstreams: [anthropic-account-a, anthropic-account-b]
+    strategy: quota_aware
+upstreams:
+  - id: anthropic-account-a
+    type: anthropic-messages
+    base_url: https://api.anthropic.com/v1
+    api_key_env: ANTHROPIC_API_KEY_A
+    anthropic_version: '2023-06-01'
+    default_max_tokens: 4096
+    models:
+      claude-sonnet: claude-sonnet-4-5
+```
+
+Provider-side limits still apply. If two API keys share the same provider organization, project, or billing quota, AgentMux can observe failures and route around them, but it cannot multiply provider-enforced limits.
+
+## CLI Backend Routing
+
+AgentMux can also route to local AI CLIs through `type: cli-backend`. This is for logged-in CLI environments, not browser cookie extraction. Keep each subscription/profile isolated with the CLI's own config directory mechanism, such as `CODEX_HOME` for Codex CLI or `CLAUDE_CONFIG_DIR` for Claude Code.
+
+CLI backend responses are wrapped as local OpenAI-compatible chat completions. Streaming requests are buffered in the initial implementation: AgentMux waits for the CLI to finish, emits one SSE content chunk, then emits `[DONE]`.
+
+```yaml
+models:
+  codex-chat:
+    upstreams: [codex-main, codex-sub]
+    strategy: quota_aware
+  claude-code:
+    upstreams: [claude-main, claude-sub]
+    strategy: fallback
+
+upstreams:
+  - id: codex-main
+    type: cli-backend
+    command: codex
+    args: ['exec', '--json', '--color', 'never', '--skip-git-repo-check']
+    model_arg: '--model'
+    input: arg
+    output: jsonl
+    env:
+      CODEX_HOME: ~/.codex-main
+    env_unset: [OPENAI_API_KEY]
+    serialize: true
+    models:
+      codex-chat: gpt-5.4
+
+  - id: claude-main
+    type: cli-backend
+    command: claude
+    args: ['-p', '--output-format', 'json', '--no-session-persistence']
+    model_arg: '--model'
+    input: arg
+    output: json
+    env:
+      CLAUDE_CONFIG_DIR: ~/.claude-main
+    env_unset: [ANTHROPIC_API_KEY]
+    serialize: true
+    models:
+      claude-code: sonnet
+```
+
+Use `serialize: true` for CLIs that store mutable profile state in one directory. AgentMux will run one request at a time for that upstream while still allowing other upstreams to run independently.
 
 ## CLI
 

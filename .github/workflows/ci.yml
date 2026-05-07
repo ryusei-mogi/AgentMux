@@ -36,7 +36,22 @@ jobs:
         run: npm run typecheck
 
       - name: Test
+        if: ${{ matrix.node-version != 22 }}
         run: npm test
+
+      - name: Test with publishable reports
+        if: ${{ matrix.node-version == 22 }}
+        run: npm run test:report
+
+      - name: Upload test and coverage reports
+        if: ${{ always() && matrix.node-version == 22 }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-and-coverage-reports-node-22
+          path: |
+            coverage/
+            test-results/
+          if-no-files-found: error
 
       - name: Build
         run: npm run build

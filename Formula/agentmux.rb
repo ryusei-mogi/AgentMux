@@ -1,8 +1,8 @@
 class Agentmux < Formula
   desc "Quota-aware local OpenAI-compatible LLM gateway for coding agents"
   homepage "https://github.com/ryusei-mogi/AgentMux"
-  url "https://github.com/ryusei-mogi/AgentMux/releases/download/v0.4.0/ryusei-mogi-agentmux-0.4.0.tgz"
-  sha256 "b4b4322c40948f884ca29bad2f72b9cded29957e5bbbc00a498d17850884a7ca"
+  url "https://github.com/ryusei-mogi/AgentMux/releases/download/v0.5.0/ryusei-mogi-agentmux-0.5.0.tgz"
+  sha256 "c2b0928f7554232849c90d97f4730f49a01329fdd9d0ba1987d1637a18f31c89"
   license "MIT"
 
   depends_on "node"
@@ -13,6 +13,6 @@ class Agentmux < Formula
   end
 
   test do
-    assert_match "0.4.0", shell_output("#{bin}/agentmux --version")
+    assert_match "0.5.0", shell_output("#{bin}/agentmux --version")
   end
 end
