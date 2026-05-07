@@ -8,6 +8,9 @@ class Agentmux < Formula
   depends_on "node"
 
   def install
+    # Homebrew delays very recent npm dependencies. Allow npm to pick the
+    # previous Hono patch release until 4.12.18 clears that safety window.
+    inreplace "package.json", '"hono": "^4.12.18"', '"hono": "^4.12.0"'
     system "npm", "install", *std_npm_args(prefix: libexec, ignore_scripts: false)
     bin.install_symlink libexec/"bin/agentmux"
   end
