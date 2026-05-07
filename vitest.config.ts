@@ -11,7 +11,13 @@ export default defineConfig({
       exclude: ['src/types.ts'],
       reporter: ['text', 'json-summary', 'lcov', 'html'],
       reportsDirectory: 'coverage',
-      reportOnFailure: true
+      reportOnFailure: true,
+      thresholds: {
+        branches: 85,
+        functions: 85,
+        lines: 85,
+        statements: 85
+      }
     }
   }
 });

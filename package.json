@@ -20,8 +20,8 @@
     "start": "node dist/cli.js serve",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "test:report": "vitest run --coverage --reporter=default --reporter=junit --outputFile.junit=test-results/vitest-junit.xml",
+    "test:coverage": "vitest run --coverage --coverage.thresholds.branches=85 --coverage.thresholds.functions=85 --coverage.thresholds.lines=85 --coverage.thresholds.statements=85",
+    "test:report": "vitest run --coverage --coverage.thresholds.branches=85 --coverage.thresholds.functions=85 --coverage.thresholds.lines=85 --coverage.thresholds.statements=85 --reporter=default --reporter=junit --outputFile.junit=test-results/vitest-junit.xml",
     "lint": "eslint .",
     "format": "prettier --check .",
     "check:oss-safety": "node scripts/check-oss-safety.mjs"
