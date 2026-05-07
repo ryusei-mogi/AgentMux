@@ -4,6 +4,8 @@ AgentMux is a local OpenAI-compatible LLM gateway for coding agents. It multiple
 
 It tracks local usage, estimates remaining quota, avoids unhealthy upstreams, and falls back when rate limits or provider errors occur.
 
+For a complete installation, configuration, routing, client setup, operations, and troubleshooting walkthrough, read the [full usage guide](docs/usage.md).
+
 ## Features
 
 - OpenAI-compatible `GET /v1/models` and `POST /v1/chat/completions`
