@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { UsageStore } from '../src/db.js';
 import { dashboardData, renderDashboard } from '../src/dashboard.js';
 import type { AppConfig } from '../src/types.js';
@@ -98,6 +98,63 @@ describe('dashboard', () => {
       });
       expect(data.models).toEqual([{ name: 'test', strategy: 'fallback', upstream_count: 2 }]);
     } finally {
+      store.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('calculates budget usage with each upstream budget window', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'agentmux-dashboard-'));
+    const store = new UsageStore(join(dir, 'usage.sqlite'));
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-05-08T06:00:00.000Z'));
+      store.recordUsage({
+        request_id: 'outside-budget-window',
+        model: 'test',
+        upstream_id: 'a',
+        upstream_model: 'upstream',
+        input_tokens: 1,
+        output_tokens: 1,
+        cached_tokens: 0,
+        estimated_cost: 3,
+        latency_ms: 100,
+        status: 'success'
+      });
+
+      vi.setSystemTime(new Date('2026-05-08T12:00:00.000Z'));
+      store.recordUsage({
+        request_id: 'inside-budget-window',
+        model: 'test',
+        upstream_id: 'a',
+        upstream_model: 'upstream',
+        input_tokens: 1,
+        output_tokens: 1,
+        cached_tokens: 0,
+        estimated_cost: 1,
+        latency_ms: 100,
+        status: 'success'
+      });
+
+      const config = fixtureConfig('a');
+      config.upstreams[0] = {
+        ...config.upstreams[0]!,
+        budget: { window: '5h', limit_usd: 4 }
+      };
+      const data = dashboardData(config, store);
+
+      expect(data.upstreams[0]).toMatchObject({
+        estimated_cost: 4,
+        budget: {
+          window: '5h',
+          limit_usd: 4,
+          used_usd: 1,
+          remaining_usd: 3,
+          percent_used: 25
+        }
+      });
+    } finally {
+      vi.useRealTimers();
       store.close();
       rmSync(dir, { recursive: true, force: true });
     }
