@@ -1,9 +1,9 @@
-import { serve } from '@hono/node-server';
+import { serve, type ServerType } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import pino from 'pino';
-import { renderDashboard } from './dashboard.js';
+import { dashboardData, renderDashboard } from './dashboard.js';
 import { UsageStore } from './db.js';
 import { RouterEngine } from './routing.js';
 import { proxyChatCompletion } from './upstream.js';
@@ -32,6 +32,7 @@ export function createApp(config: AppConfig, store = new UsageStore(config.datab
 
   app.get('/health', (c) => c.json(healthPayload(config, store)));
   app.get('/dashboard', (c) => c.html(renderDashboard(config, store)));
+  app.get('/dashboard/data', (c) => c.json(dashboardData(config, store)));
 
   app.get('/v1/models', (c) =>
     c.json({
@@ -72,14 +73,27 @@ export function createApp(config: AppConfig, store = new UsageStore(config.datab
 }
 
 export function startServer(config: AppConfig): void {
-  const app = createApp(config);
-  const _server = serve(
+  const _server = startHttpServer(config);
+  void _server;
+}
+
+export function startHttpServer(config: AppConfig, store?: UsageStore): ServerType {
+  const app = createApp(config, store);
+  return serve(
     { fetch: app.fetch, hostname: config.server.host, port: config.server.port },
     (info) => {
       console.log(`AgentMux listening on http://${info.address}:${info.port}`);
     }
   );
-  void _server;
+}
+
+export function closeHttpServer(server: ServerType): Promise<void> {
+  return new Promise((resolve, reject) => {
+    server.close((error?: NodeJS.ErrnoException) => {
+      if (error && error.code !== 'ERR_SERVER_NOT_RUNNING') reject(error);
+      else resolve();
+    });
+  });
 }
 
 export function healthPayload(

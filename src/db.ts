@@ -3,16 +3,37 @@ import { ensureParentDir } from './paths.js';
 import type { UpstreamRuntimeState, UpstreamStats, UsageRecordInput } from './types.js';
 import type BetterSqlite3 from 'better-sqlite3';
 
-const require = createRequire(import.meta.url);
-const Database = require('better-sqlite3') as typeof BetterSqlite3;
+export type DbValue = string | number | bigint | Uint8Array | null;
+
+export interface DbStatement {
+  run(...params: DbValue[]): unknown;
+  get(...params: DbValue[]): Record<string, unknown> | undefined;
+  all(...params: DbValue[]): Array<Record<string, unknown>>;
+}
+
+export interface DbAdapter {
+  prepare(sql: string): DbStatement;
+  exec(sql: string): void;
+  transaction<T>(fn: () => T): T;
+  close(): void;
+}
+
+export type DbAdapterFactory = (path: string) => DbAdapter;
+
+export interface UsageStoreOptions {
+  createAdapter?: DbAdapterFactory | undefined;
+}
 
 export class UsageStore {
-  private db: BetterSqlite3.Database;
+  private db: DbAdapter;
 
-  constructor(path: string) {
+  constructor(path: string, options: UsageStoreOptions = {}) {
     ensureParentDir(path);
-    this.db = new Database(path);
-    this.db.pragma('journal_mode = WAL');
+    this.db = (options.createAdapter ?? createBetterSqlite3Adapter)(path);
+    this.db.exec(`
+      PRAGMA journal_mode = WAL;
+      PRAGMA busy_timeout = 5000;
+    `);
     this.migrate();
   }
 
@@ -193,7 +214,7 @@ export class UsageStore {
           COALESCE(AVG(latency_ms), 0) as average_latency_ms
         FROM usage_events WHERE upstream_id = ? AND created_at >= ?`
       )
-      .get(upstreamId, since) as StatsRow;
+      .get(upstreamId, since) as unknown as StatsRow;
     return { upstream_id: upstreamId, ...row };
   }
 
@@ -212,7 +233,7 @@ export class UsageStore {
           COALESCE(AVG(latency_ms), 0) as average_latency_ms
         FROM usage_events WHERE created_at >= ? GROUP BY upstream_id ORDER BY estimated_cost DESC`
       )
-      .all(since) as UpstreamStats[];
+      .all(since) as unknown as UpstreamStats[];
   }
 
   getRecentErrors(limit = 10): Array<{
@@ -249,6 +270,36 @@ export class UsageStore {
         'INSERT INTO router_kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
       )
       .run(key, value);
+  }
+}
+
+export function createBetterSqlite3Adapter(path: string): DbAdapter {
+  return new BetterSqlite3Adapter(path);
+}
+
+class BetterSqlite3Adapter implements DbAdapter {
+  private db: BetterSqlite3.Database;
+
+  constructor(path: string) {
+    const require = createRequire(import.meta.url);
+    const Database = require('better-sqlite3') as typeof BetterSqlite3;
+    this.db = new Database(path);
+  }
+
+  prepare(sql: string): DbStatement {
+    return this.db.prepare(sql) as DbStatement;
+  }
+
+  exec(sql: string): void {
+    this.db.exec(sql);
+  }
+
+  transaction<T>(fn: () => T): T {
+    return this.db.transaction(fn)();
+  }
+
+  close(): void {
+    this.db.close();
   }
 }
 
