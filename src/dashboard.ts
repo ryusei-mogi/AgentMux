@@ -72,11 +72,12 @@ interface DashboardModel {
 }
 
 export function dashboardData(config: AppConfig, store: UsageStore): DashboardData {
-  const since = windowStart('daily');
+  const now = Date.now();
+  const since = windowStart('daily', now);
   const usage = store.getUsageSince(since);
   const statsByUpstream = new Map(usage.map((item) => [item.upstream_id, item]));
   const upstreams = config.upstreams.map((upstream) =>
-    upstreamData(upstream, statsByUpstream.get(upstream.id) ?? emptyStats(upstream.id), store)
+    upstreamData(upstream, statsByUpstream.get(upstream.id) ?? emptyStats(upstream.id), store, now)
   );
   const totals = upstreams.reduce(
     (acc, item) => ({
@@ -354,18 +355,22 @@ export function renderDashboard(config: AppConfig, store: UsageStore): string {
 function upstreamData(
   upstream: UpstreamConfig,
   stats: UpstreamStats,
-  store: UsageStore
+  store: UsageStore,
+  now: number
 ): DashboardUpstream {
   const state = store.recoverExpiredCooldown(upstream.id);
+  const budgetStats = upstream.budget
+    ? store.getStats(upstream.id, windowStart(upstream.budget.window, now))
+    : stats;
   const budget = upstream.budget
     ? {
         window: upstream.budget.window,
         limit_usd: upstream.budget.limit_usd,
-        used_usd: stats.estimated_cost,
-        remaining_usd: Math.max(0, upstream.budget.limit_usd - stats.estimated_cost),
+        used_usd: budgetStats.estimated_cost,
+        remaining_usd: Math.max(0, upstream.budget.limit_usd - budgetStats.estimated_cost),
         percent_used:
           upstream.budget.limit_usd > 0
-            ? Math.min(100, (stats.estimated_cost / upstream.budget.limit_usd) * 100)
+            ? Math.min(100, (budgetStats.estimated_cost / upstream.budget.limit_usd) * 100)
             : 0
       }
     : undefined;

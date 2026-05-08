@@ -1,12 +1,18 @@
 import { existsSync } from 'node:fs';
-import { createServer } from 'node:net';
+import { createServer, isIP } from 'node:net';
 import { isAbsolute } from 'node:path';
 import type { ServerType } from '@hono/node-server';
 import { dashboardData } from './dashboard.js';
 import { UsageStore } from './db.js';
 import { loadConfig } from './config.js';
 import { closeHttpServer, healthPayload, startHttpServer } from './server.js';
-import type { AppConfig, UpstreamConfig, UpstreamState, UpstreamType } from './types.js';
+import type {
+  AppConfig,
+  UpstreamBudgetConfig,
+  UpstreamConfig,
+  UpstreamState,
+  UpstreamType
+} from './types.js';
 import type { DbAdapterFactory } from './db.js';
 
 export type AgentMuxRuntimeState = 'stopped' | 'starting' | 'running' | 'degraded' | 'error';
@@ -57,6 +63,13 @@ export interface AgentMuxRuntimeUpstream {
   average_latency_ms: number;
   cooldown_until?: string;
   last_error?: string;
+  budget?: {
+    window: UpstreamBudgetConfig['window'];
+    limit_usd: number;
+    used_usd: number;
+    remaining_usd: number;
+    percent_used: number;
+  };
 }
 
 export interface AgentMuxPortConflict {
@@ -221,6 +234,7 @@ export class AgentMuxRuntime {
           item.cooldown_until = new Date(upstream.cooldown_until).toISOString();
         }
         if (stats?.last_error) item.last_error = stats.last_error;
+        if (stats?.budget) item.budget = stats.budget;
         return item;
       }),
       models: health.models,
@@ -421,7 +435,12 @@ function emptyTotals(): AgentMuxRuntimeTotals {
 }
 
 function baseUrl(config: AppConfig): string {
-  return `http://${config.server.host}:${config.server.port}`;
+  return `http://${urlHost(config.server.host)}:${config.server.port}`;
+}
+
+function urlHost(host: string): string {
+  if (host.startsWith('[') && host.endsWith(']')) return host;
+  return isIP(host) === 6 ? `[${host}]` : host;
 }
 
 function upstreamType(config: AppConfig, id: string): UpstreamType {

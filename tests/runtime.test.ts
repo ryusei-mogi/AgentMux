@@ -93,6 +93,28 @@ describe('AgentMuxRuntime', () => {
     }
   });
 
+  it('brackets IPv6 loopback hosts in the runtime base URL', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'agentmux-runtime-'));
+    const runtime = new AgentMuxRuntime();
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    try {
+      const port = await freePort('::1');
+      const configPath = join(dir, 'agentmux.yaml');
+      writeFileSync(configPath, configYaml(dir, port, '::1'), 'utf8');
+
+      const running = await runtime.start(configPath, {
+        [serverEnv]: 'server-key-that-is-long-enough',
+        [upstreamEnv]: 'upstream-key'
+      });
+      expect(running.base_url).toBe(`http://[::1]:${port}`);
+      expect(() => new URL(`${running.base_url}/v1/models`)).not.toThrow();
+    } finally {
+      await runtime.stop();
+      log.mockRestore();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('handles stopped, already-running, restart, unknown upstream, and failed-start states', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'agentmux-runtime-'));
     const runtime = new AgentMuxRuntime();
@@ -283,10 +305,10 @@ function restoreEnv(name: string, value: string | undefined): void {
   else process.env[name] = value;
 }
 
-function configYaml(dir: string, port: number): string {
+function configYaml(dir: string, port: number, host = '127.0.0.1'): string {
   return [
     'server:',
-    '  host: 127.0.0.1',
+    `  host: ${host}`,
     `  port: ${port}`,
     `  api_key_env: ${serverEnv}`,
     '  allow_unauthenticated: false',
@@ -342,15 +364,18 @@ function macValidationConfig(overrides: Partial<AppConfig> = {}): AppConfig {
   };
 }
 
-function freePort(): Promise<number> {
+function freePort(host = '127.0.0.1'): Promise<number> {
   const server = createServer();
-  return listenOnFreePort(server).finally(() => closeServer(server));
+  return listenOnFreePort(server, host).finally(() => closeServer(server));
 }
 
-function listenOnFreePort(server: ReturnType<typeof createServer>): Promise<number> {
+function listenOnFreePort(
+  server: ReturnType<typeof createServer>,
+  host = '127.0.0.1'
+): Promise<number> {
   return new Promise((resolve, reject) => {
     server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
+    server.listen(0, host, () => {
       const address = server.address();
       if (typeof address === 'object' && address) resolve(address.port);
       else reject(new Error('Failed to allocate a test port'));
