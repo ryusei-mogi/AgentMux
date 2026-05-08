@@ -81,7 +81,9 @@ describe('config', () => {
         minimalConfigWithServer(`  api_key_env: ${envName}`, 'UPSTREAM_TEST_API_KEY', dir),
         'utf8'
       );
-      expect(() => loadConfig(path)).toThrow(/Missing server API key env/);
+      expect(() => loadConfig(path)).toThrow(
+        /Missing configured server API key environment variable/
+      );
     } finally {
       if (previous === undefined) delete process.env[envName];
       else process.env[envName] = previous;

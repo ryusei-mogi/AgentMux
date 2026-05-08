@@ -2,12 +2,30 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { UsageStore } from '../src/db.js';
+import { createBetterSqlite3Adapter, type DbAdapterFactory, UsageStore } from '../src/db.js';
+import { createNodeSqliteAdapter } from '../src/db-node-sqlite.js';
 
-describe('UsageStore', () => {
+const storeVariants: Array<{
+  name: string;
+  createStore(path: string): UsageStore;
+  createAdapter: DbAdapterFactory;
+}> = [
+  {
+    name: 'better-sqlite3',
+    createStore: (path) => new UsageStore(path),
+    createAdapter: createBetterSqlite3Adapter
+  },
+  {
+    name: 'node:sqlite',
+    createStore: (path) => new UsageStore(path, { createAdapter: createNodeSqliteAdapter }),
+    createAdapter: createNodeSqliteAdapter
+  }
+];
+
+describe.each(storeVariants)('UsageStore with $name', ({ createAdapter, createStore }) => {
   it('records usage summaries and recent errors', () => {
     const dir = mkdtempSync(join(tmpdir(), 'agentmux-db-'));
-    const store = new UsageStore(join(dir, 'usage.sqlite'));
+    const store = createStore(join(dir, 'usage.sqlite'));
     try {
       store.recordUsage({
         request_id: 'r1',
@@ -65,7 +83,7 @@ describe('UsageStore', () => {
 
   it('manages upstream state transitions and router kv', () => {
     const dir = mkdtempSync(join(tmpdir(), 'agentmux-db-'));
-    const store = new UsageStore(join(dir, 'usage.sqlite'));
+    const store = createStore(join(dir, 'usage.sqlite'));
     try {
       expect(store.getState('a')).toMatchObject({
         id: 'a',
@@ -111,6 +129,29 @@ describe('UsageStore', () => {
       expect(store.getKv('missing')).toBeUndefined();
     } finally {
       store.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('rolls back adapter transactions', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'agentmux-db-'));
+    const db = createAdapter(join(dir, 'transaction.sqlite'));
+    try {
+      db.exec('CREATE TABLE events (id INTEGER PRIMARY KEY, name TEXT NOT NULL)');
+      expect(() =>
+        db.transaction(() => {
+          db.prepare('INSERT INTO events (name) VALUES (?)').run('before-error');
+          throw new Error('rollback');
+        })
+      ).toThrow('rollback');
+      expect(db.prepare('SELECT * FROM events').all()).toEqual([]);
+
+      db.transaction(() => {
+        db.prepare('INSERT INTO events (name) VALUES (?)').run('committed');
+      });
+      expect(db.prepare('SELECT name FROM events').get()).toEqual({ name: 'committed' });
+    } finally {
+      db.close();
       rmSync(dir, { recursive: true, force: true });
     }
   });

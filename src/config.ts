@@ -183,7 +183,7 @@ function generateServerApiKey(): string {
 function resolveServerApiKey(apiKey?: string, apiKeyEnv?: string): string | undefined {
   const value = apiKeyEnv ? process.env[apiKeyEnv] : apiKey;
   if (apiKeyEnv && !value) {
-    throw new Error(`Missing server API key env: ${apiKeyEnv}`);
+    throw new Error('Missing configured server API key environment variable');
   }
   if (value && value.length < 16) {
     throw new Error('server.api_key must be at least 16 characters');

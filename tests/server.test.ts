@@ -103,6 +103,22 @@ describe('server', () => {
       expect(dashboard.status).toBe(200);
       expect(await dashboard.text()).toContain('AgentMux');
 
+      const dashboardData = await app.request('/dashboard/data');
+      const dashboardJson = (await dashboardData.json()) as {
+        totals: { upstreams: number };
+        upstreams: Array<{ id: string; state: string }>;
+        models: Array<{ name: string }>;
+        recent_errors: unknown[];
+      };
+      expect(dashboardData.status).toBe(200);
+      expect(dashboardJson.totals.upstreams).toBe(1);
+      expect(dashboardJson.upstreams[0]).toMatchObject({
+        id: 'test-upstream',
+        state: 'disabled'
+      });
+      expect(dashboardJson.models[0]?.name).toBe('test-model');
+      expect(Array.isArray(dashboardJson.recent_errors)).toBe(true);
+
       const notFound = await app.request('/missing');
       expect(notFound.status).toBe(404);
     } finally {
