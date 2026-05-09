@@ -45,6 +45,7 @@ AgentMux currently exposes:
 - `GET /dashboard`
 - `GET /v1/models`
 - `POST /v1/chat/completions`
+- `POST /v1/responses`
 
 The `/v1/*` endpoints require `Authorization: Bearer <local AgentMux API key>` unless you explicitly set `server.allow_unauthenticated: true`.
 
@@ -64,7 +65,7 @@ AgentMux requires Node.js `>=22.13`.
 ### GitHub Release Tarball
 
 ```bash
-npm install -g https://github.com/ryusei-mogi/AgentMux/releases/download/v0.5.1/ryusei-mogi-agentmux-0.5.1.tgz
+npm install -g https://github.com/ryusei-mogi/AgentMux/releases/download/v0.6.0/ryusei-mogi-agentmux-0.6.0.tgz
 agentmux --version
 ```
 
@@ -662,6 +663,53 @@ curl -N http://127.0.0.1:8787/v1/chat/completions \
       { "role": "user", "content": "Stream a short answer." }
     ]
   }'
+```
+
+### Responses API (Codex CLI)
+
+AgentMux exposes `POST /v1/responses` for clients that use the OpenAI Responses API wire format, such as Codex CLI 0.130.0+.
+
+Non-streaming example:
+
+```bash
+curl http://127.0.0.1:8787/v1/responses \
+  -H "Authorization: Bearer $AGENTMUX_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "deepseek-chat",
+    "input": "What is AgentMux?",
+    "instructions": "Be concise."
+  }'
+```
+
+Streaming example:
+
+```bash
+curl -N http://127.0.0.1:8787/v1/responses \
+  -H "Authorization: Bearer $AGENTMUX_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "deepseek-chat",
+    "stream": true,
+    "input": "Write a haiku about code."
+  }'
+```
+
+Supported request fields: `model` (required), `instructions` (→ system message), `input` (string or array of `{"type":"input_text","text":"..."}` parts → user message), `stream`, `temperature`, `top_p`, `max_output_tokens` (→ `max_tokens`).
+
+Non-streaming responses follow the Responses API shape: `object: "response"`, `status: "completed"`, `output` array, `output_text` string, and `usage` fields. Streaming responses emit SSE events: `response.created`, `response.output_item.added`, `response.content_part.added`, `response.output_text.delta`, `response.output_text.done`, `response.completed`, and `data: [DONE]`.
+
+Codex CLI configuration example (`~/.codex/config.toml` or `CODEX_HOME/config.toml`):
+
+```toml
+model = "deepseek-chat"
+model_provider = "agentmux"
+
+[model_providers.agentmux]
+name = "AgentMux"
+base_url = "http://127.0.0.1:8787/v1"
+wire_api = "responses"
+experimental_bearer_token = "local-agentmux-key"
 ```
 
 ## Client Setup

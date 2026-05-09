@@ -8,6 +8,12 @@ import { UsageStore } from './db.js';
 import { RouterEngine } from './routing.js';
 import { proxyChatCompletion } from './upstream.js';
 import type { AppConfig, ChatCompletionRequest } from './types.js';
+import {
+  buildChatBody,
+  chatToResponsesResponse,
+  createResponsesStream,
+  type ResponsesRequest
+} from './responses.js';
 
 export function createApp(config: AppConfig, store = new UsageStore(config.database.path)): Hono {
   const app = new Hono();
@@ -58,6 +64,49 @@ export function createApp(config: AppConfig, store = new UsageStore(config.datab
     const result = await proxyChatCompletion(config, store, body, candidates);
     log.info({ model: body.model, upstream: result.upstreamId }, 'routed chat completion');
     return result.response;
+  });
+
+  app.post('/v1/responses', async (c) => {
+    const body = (await c.req.json()) as ResponsesRequest;
+    if (!body.model || typeof body.model !== 'string') {
+      return c.json({ error: { message: 'model is required' } }, 400);
+    }
+    const chatBody = buildChatBody(body);
+    if (!Array.isArray(chatBody.messages) || chatBody.messages.length === 0) {
+      return c.json({ error: { message: 'input or instructions is required' } }, 400);
+    }
+    const candidates = router.select(body.model);
+    if (candidates.length === 0) {
+      return c.json({ error: { message: `No available upstreams for model ${body.model}` } }, 503);
+    }
+    const chatStream = body.stream === true;
+    const proxyBody: ChatCompletionRequest = { ...chatBody, stream: chatStream };
+    const result = await proxyChatCompletion(config, store, proxyBody, candidates);
+    log.info(
+      { model: body.model, upstream: result.upstreamId, stream: chatStream },
+      'routed responses api'
+    );
+
+    if (!chatStream) {
+      const json = (await result.response.json()) as Record<string, unknown>;
+      const responsesJson = chatToResponsesResponse(json, body.model);
+      return Response.json(responsesJson, { status: 200 });
+    }
+
+    const upstreamStream = result.response.body;
+    if (!upstreamStream) {
+      return c.json({ error: { message: 'Upstream returned no stream body' } }, 502);
+    }
+    const responsesStream = createResponsesStream(upstreamStream, body.model);
+    return new Response(responsesStream, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no'
+      }
+    });
   });
 
   app.notFound((c) => c.json({ error: { message: 'Not found' } }, 404));

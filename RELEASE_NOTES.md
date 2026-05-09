@@ -1,3 +1,27 @@
+# Release Notes - v0.6.0
+
+## Highlights
+
+AgentMux adds a `POST /v1/responses` endpoint that translates OpenAI Responses API requests into the existing chat completions proxy. Codex CLI 0.130.0+ and other clients using `wire_api="responses"` can now point directly at AgentMux.
+
+## Added
+
+- Added `POST /v1/responses` endpoint with full request/response translation.
+  - Converts `instructions` into a system message and `input` (string or `input_text` parts) into a user message.
+  - Maps `temperature`, `top_p`, and `max_output_tokens` → `max_tokens` to the underlying chat completion request.
+  - Non-streaming: returns Responses API JSON shape (`object: "response"`, `status: "completed"`, `output`, `output_text`, `usage`).
+  - Streaming: emits `response.created`, `response.output_item.added`, `response.content_part.added`, `response.output_text.delta`, `response.output_text.done`, `response.completed`, and `data: [DONE]` SSE events.
+  - Reuses the existing proxy routing, retry, fallback, Anthropic conversion, CLI backend, and usage tracking infrastructure.
+- Added tests covering auth and validation, request translation (`instructions` and `input_text`), non-streaming response shape, streaming SSE events and deltas, no-candidate errors, and empty content handling.
+- Added Codex CLI `wire_api="responses"` configuration example and Responses API documentation (English and Japanese).
+
+## Compatibility
+
+- Existing `/v1/chat/completions` and `/v1/models` behavior is unchanged.
+- Auth middleware and server configuration are shared between all `/v1/*` routes.
+
+---
+
 # Release Notes - v0.5.1
 
 ## Hotfix

@@ -17,3 +17,4 @@ accounts.env.*
 .agentmux/
 .oc-router/
 .sisyphus/
+.agents/

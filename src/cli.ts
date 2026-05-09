@@ -18,7 +18,7 @@ export function createProgram(): Command {
   program
     .name('agentmux')
     .description('Quota-aware local OpenAI-compatible LLM gateway.')
-    .version('0.5.1');
+    .version('0.6.0');
 
   program
     .command('init')

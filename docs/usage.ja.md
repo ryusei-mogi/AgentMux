@@ -45,6 +45,7 @@ AgentMux が提供するエンドポイントは次の通りです。
 - `GET /dashboard`
 - `GET /v1/models`
 - `POST /v1/chat/completions`
+- `POST /v1/responses`
 
 `/v1/*` エンドポイントは、`server.allow_unauthenticated: true` を明示しない限り、`Authorization: Bearer <AgentMux のローカル API キー>` を要求します。
 
@@ -64,7 +65,7 @@ AgentMux は Node.js `>=22.13` が必要です。
 ### GitHub Release tarball
 
 ```bash
-npm install -g https://github.com/ryusei-mogi/AgentMux/releases/download/v0.5.1/ryusei-mogi-agentmux-0.5.1.tgz
+npm install -g https://github.com/ryusei-mogi/AgentMux/releases/download/v0.6.0/ryusei-mogi-agentmux-0.6.0.tgz
 agentmux --version
 ```
 
@@ -659,6 +660,53 @@ curl -N http://127.0.0.1:8787/v1/chat/completions \
       { "role": "user", "content": "Stream a short answer." }
     ]
   }'
+```
+
+### Responses API（Codex CLI 向け）
+
+AgentMux は `POST /v1/responses` を提供し、Codex CLI 0.130.0+ のような OpenAI Responses API wire format を使うクライアントに対応します。
+
+非ストリーミング:
+
+```bash
+curl http://127.0.0.1:8787/v1/responses \
+  -H "Authorization: Bearer $AGENTMUX_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "deepseek-chat",
+    "input": "AgentMuxとは？",
+    "instructions": "簡潔に答えてください。"
+  }'
+```
+
+ストリーミング:
+
+```bash
+curl -N http://127.0.0.1:8787/v1/responses \
+  -H "Authorization: Bearer $AGENTMUX_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "deepseek-chat",
+    "stream": true,
+    "input": "コードについての俳句を書いてください。"
+  }'
+```
+
+対応リクエストフィールド: `model`（必須）、`instructions`（→ system メッセージ）、`input`（文字列 または `{"type":"input_text","text":"..."}` の配列 → user メッセージ）、`stream`、`temperature`、`top_p`、`max_output_tokens`（→ `max_tokens`）。
+
+非ストリーミング応答は Responses API の形状（`object: "response"`、`status: "completed"`、`output` 配列、`output_text` 文字列、`usage` フィールド）で返ります。ストリーミング応答は `response.created`、`response.output_item.added`、`response.content_part.added`、`response.output_text.delta`、`response.output_text.done`、`response.completed`、`data: [DONE]` の SSE イベントを発行します。
+
+Codex CLI の設定例（`~/.codex/config.toml` または `CODEX_HOME/config.toml`）:
+
+```toml
+model = "deepseek-chat"
+model_provider = "agentmux"
+
+[model_providers.agentmux]
+name = "AgentMux"
+base_url = "http://127.0.0.1:8787/v1"
+wire_api = "responses"
+experimental_bearer_token = "local-agentmux-key"
 ```
 
 ## クライアント設定

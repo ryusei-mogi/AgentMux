@@ -1202,6 +1202,732 @@ describe('server', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  describe('responses API', () => {
+    it('rejects requests without auth', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'agentmux-server-'));
+      const config = fixtureConfig(join(dir, 'usage.sqlite'));
+      const store = new UsageStore(config.database.path);
+      try {
+        const app = createApp(config, store);
+        const response = await app.request('/v1/responses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: 'test-model', input: 'hi' })
+        });
+        expect(response.status).toBe(401);
+      } finally {
+        store.close();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('rejects requests missing model', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'agentmux-server-'));
+      const config = fixtureConfig(join(dir, 'usage.sqlite'));
+      const store = new UsageStore(config.database.path);
+      try {
+        const app = createApp(config, store);
+        const response = await authedResponses(app, { input: 'hi' });
+        expect(response.status).toBe(400);
+      } finally {
+        store.close();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('rejects requests missing input and instructions', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'agentmux-server-'));
+      const config = fixtureConfig(join(dir, 'usage.sqlite'));
+      const store = new UsageStore(config.database.path);
+      try {
+        const app = createApp(config, store);
+        const response = await authedResponses(app, { model: 'test-model' });
+        expect(response.status).toBe(400);
+      } finally {
+        store.close();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('accepts instructions-only requests without input', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'agentmux-server-'));
+      const config = fixtureConfig(join(dir, 'usage.sqlite'));
+      const originalFetch = globalThis.fetch;
+      const store = new UsageStore(config.database.path);
+      let capturedBody: Record<string, unknown> | undefined;
+      try {
+        globalThis.fetch = (async (_input, init) => {
+          capturedBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+          return Response.json({
+            id: 'chatcmpl-test',
+            object: 'chat.completion',
+            choices: [{ index: 0, message: { role: 'assistant', content: 'pong' } }],
+            usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 }
+          });
+        }) satisfies typeof fetch;
+        const app = createApp(config, store);
+        const response = await authedResponses(app, {
+          model: 'test-model',
+          instructions: 'You are helpful.'
+        });
+        expect(response.status).toBe(200);
+        const messages = capturedBody?.messages as
+          | Array<{ role: string; content: string }>
+          | undefined;
+        expect(messages).toHaveLength(1);
+        expect(messages?.[0]).toEqual({ role: 'system', content: 'You are helpful.' });
+      } finally {
+        globalThis.fetch = originalFetch;
+        store.close();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('converts string input and instructions into chat messages', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'agentmux-server-'));
+      const config = fixtureConfig(join(dir, 'usage.sqlite'));
+      const originalFetch = globalThis.fetch;
+      const store = new UsageStore(config.database.path);
+      let capturedBody: Record<string, unknown> | undefined;
+      try {
+        globalThis.fetch = (async (_input, init) => {
+          capturedBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+          return Response.json({
+            id: 'chatcmpl-test',
+            object: 'chat.completion',
+            choices: [{ index: 0, message: { role: 'assistant', content: 'hi back' } }],
+            usage: { prompt_tokens: 6, completion_tokens: 3, total_tokens: 9 }
+          });
+        }) satisfies typeof fetch;
+        const app = createApp(config, store);
+        const response = await authedResponses(app, {
+          model: 'test-model',
+          instructions: 'Be concise.',
+          input: 'Hello'
+        });
+        expect(response.status).toBe(200);
+        const messages = capturedBody?.messages as
+          | Array<{ role: string; content: string }>
+          | undefined;
+        expect(messages).toEqual([
+          { role: 'system', content: 'Be concise.' },
+          { role: 'user', content: 'Hello' }
+        ]);
+        expect(capturedBody?.model).toBe('upstream-model');
+      } finally {
+        globalThis.fetch = originalFetch;
+        store.close();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('converts input_text content parts into a user message', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'agentmux-server-'));
+      const config = fixtureConfig(join(dir, 'usage.sqlite'));
+      const originalFetch = globalThis.fetch;
+      const store = new UsageStore(config.database.path);
+      let capturedBody: Record<string, unknown> | undefined;
+      try {
+        globalThis.fetch = (async (_input, init) => {
+          capturedBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+          return Response.json({
+            id: 'chatcmpl-test',
+            object: 'chat.completion',
+            choices: [{ index: 0, message: { role: 'assistant', content: 'ok' } }],
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+          });
+        }) satisfies typeof fetch;
+        const app = createApp(config, store);
+        const response = await authedResponses(app, {
+          model: 'test-model',
+          input: [
+            { type: 'input_text', text: 'Part 1' },
+            { type: 'input_text', text: 'Part 2' }
+          ]
+        });
+        expect(response.status).toBe(200);
+        const messages = capturedBody?.messages as
+          | Array<{ role: string; content: string }>
+          | undefined;
+        expect(messages).toEqual([{ role: 'user', content: 'Part 1Part 2' }]);
+      } finally {
+        globalThis.fetch = originalFetch;
+        store.close();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('converts Responses message input items into chat messages', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'agentmux-server-'));
+      const config = fixtureConfig(join(dir, 'usage.sqlite'));
+      const originalFetch = globalThis.fetch;
+      const store = new UsageStore(config.database.path);
+      let capturedBody: Record<string, unknown> | undefined;
+      try {
+        globalThis.fetch = (async (_input, init) => {
+          capturedBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+          return Response.json({
+            id: 'chatcmpl-message',
+            object: 'chat.completion',
+            choices: [{ index: 0, message: { role: 'assistant', content: 'ok' } }],
+            usage: { prompt_tokens: 2, completion_tokens: 1, total_tokens: 3 }
+          });
+        }) satisfies typeof fetch;
+        const app = createApp(config, store);
+        const response = await authedResponses(app, {
+          model: 'test-model',
+          input: [
+            {
+              type: 'message',
+              role: 'user',
+              content: [
+                { type: 'input_text', text: 'Question: ' },
+                { type: 'input_text', text: 'hello?' }
+              ]
+            }
+          ]
+        });
+        expect(response.status).toBe(200);
+        const messages = capturedBody?.messages as
+          | Array<{ role: string; content: string }>
+          | undefined;
+        expect(messages).toEqual([{ role: 'user', content: 'Question: hello?' }]);
+      } finally {
+        globalThis.fetch = originalFetch;
+        store.close();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('converts message input content objects and skips empty message content', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'agentmux-server-'));
+      const config = fixtureConfig(join(dir, 'usage.sqlite'));
+      const originalFetch = globalThis.fetch;
+      const store = new UsageStore(config.database.path);
+      let capturedBody: Record<string, unknown> | undefined;
+      try {
+        globalThis.fetch = (async (_input, init) => {
+          capturedBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+          return Response.json({
+            id: 'chatcmpl-message-object',
+            object: 'chat.completion',
+            choices: [{ index: 0, message: { role: 'assistant', content: 'ok' } }],
+            usage: { prompt_tokens: 2, completion_tokens: 1, total_tokens: 3 }
+          });
+        }) satisfies typeof fetch;
+        const app = createApp(config, store);
+        const response = await authedResponses(app, {
+          model: 'test-model',
+          input: [
+            { type: 'message', role: 'user', content: { value: 'wrapped' } },
+            { type: 'message', role: 'user' }
+          ]
+        });
+        expect(response.status).toBe(200);
+        const messages = capturedBody?.messages as
+          | Array<{ role: string; content: string }>
+          | undefined;
+        expect(messages).toEqual([{ role: 'user', content: '[object Object]' }]);
+      } finally {
+        globalThis.fetch = originalFetch;
+        store.close();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('forwards temperature, top_p, and max_output_tokens', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'agentmux-server-'));
+      const config = fixtureConfig(join(dir, 'usage.sqlite'));
+      const originalFetch = globalThis.fetch;
+      const store = new UsageStore(config.database.path);
+      let capturedBody: Record<string, unknown> | undefined;
+      try {
+        globalThis.fetch = (async (_input, init) => {
+          capturedBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+          return Response.json({
+            id: 'chatcmpl-test',
+            object: 'chat.completion',
+            choices: [{ index: 0, message: { role: 'assistant', content: 'ok' } }],
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+          });
+        }) satisfies typeof fetch;
+        const app = createApp(config, store);
+        const response = await authedResponses(app, {
+          model: 'test-model',
+          input: 'hi',
+          temperature: 0.5,
+          top_p: 0.9,
+          max_output_tokens: 123
+        });
+        expect(response.status).toBe(200);
+        expect(capturedBody?.temperature).toBe(0.5);
+        expect(capturedBody?.top_p).toBe(0.9);
+        expect(capturedBody?.max_tokens).toBe(123);
+      } finally {
+        globalThis.fetch = originalFetch;
+        store.close();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('returns non-streaming Responses API shape from chat completion', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'agentmux-server-'));
+      const config = fixtureConfig(join(dir, 'usage.sqlite'));
+      const originalFetch = globalThis.fetch;
+      const store = new UsageStore(config.database.path);
+      try {
+        globalThis.fetch = (async () =>
+          Response.json({
+            id: 'chatcmpl-xyz',
+            object: 'chat.completion',
+            choices: [
+              {
+                index: 0,
+                message: { role: 'assistant', content: 'Hello from responses!' },
+                finish_reason: 'stop'
+              }
+            ],
+            usage: { prompt_tokens: 5, completion_tokens: 3, total_tokens: 8 }
+          })) satisfies typeof fetch;
+        const app = createApp(config, store);
+        const response = await authedResponses(app, {
+          model: 'test-model',
+          input: 'hi'
+        });
+        const json = await expectJsonStatus<{
+          id: string;
+          object: string;
+          status: string;
+          model: string;
+          output: Array<{
+            type: string;
+            role: string;
+            status: string;
+            content: Array<{ type: string; text: string }>;
+          }>;
+          output_text: string;
+          usage: { input_tokens: number; output_tokens: number; total_tokens: number };
+        }>(response, 200);
+        expect(json.object).toBe('response');
+        expect(json.status).toBe('completed');
+        expect(json.model).toBe('test-model');
+        expect(json.output).toHaveLength(1);
+        expect(json.output[0]?.type).toBe('message');
+        expect(json.output[0]?.role).toBe('assistant');
+        expect(json.output[0]?.status).toBe('completed');
+        expect(json.output[0]?.content[0]).toEqual({
+          type: 'output_text',
+          text: 'Hello from responses!'
+        });
+        expect(json.output_text).toBe('Hello from responses!');
+        expect(json.usage).toEqual({ input_tokens: 5, output_tokens: 3, total_tokens: 8 });
+      } finally {
+        globalThis.fetch = originalFetch;
+        store.close();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('returns error for no available upstreams', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'agentmux-server-'));
+      const config = fixtureConfig(join(dir, 'usage.sqlite'));
+      const store = new UsageStore(config.database.path);
+      try {
+        store.setDisabled('test-upstream', true);
+        const app = createApp(config, store);
+        const response = await authedResponses(app, {
+          model: 'test-model',
+          input: 'hi'
+        });
+        await expectJsonStatus(response, 503);
+      } finally {
+        store.close();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('emits Responses SSE events including deltas and completion', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'agentmux-server-'));
+      const config = fixtureConfig(join(dir, 'usage.sqlite'));
+      const originalFetch = globalThis.fetch;
+      const store = new UsageStore(config.database.path);
+      try {
+        globalThis.fetch = (async () =>
+          new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                const encoder = new TextEncoder();
+                controller.enqueue(
+                  encoder.encode(
+                    [
+                      'data: {"id":"chatcmpl-a","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant"}}]}',
+                      '',
+                      'data: {"id":"chatcmpl-a","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"Hello"}}]}',
+                      '',
+                      'data: {"id":"chatcmpl-a","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":" world"}}],"usage":{"prompt_tokens":2,"completion_tokens":2,"total_tokens":4}}',
+                      '',
+                      'data: {"id":"chatcmpl-a","object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
+                      '',
+                      'data: [DONE]',
+                      ''
+                    ].join('\n')
+                  )
+                );
+                controller.close();
+              }
+            }),
+            { headers: { 'Content-Type': 'text/event-stream' } }
+          )) satisfies typeof fetch;
+
+        const app = createApp(config, store);
+        const response = await authedResponses(app, {
+          model: 'test-model',
+          input: 'hi',
+          stream: true
+        });
+        const text = await response.text();
+        expect(response.status).toBe(200);
+        expect(response.headers.get('content-type')).toContain('text/event-stream');
+
+        expect(text).toContain('event: response.created');
+        expect(text).toContain('event: response.output_item.added');
+        expect(text).toContain('event: response.content_part.added');
+        expect(text).toContain('event: response.output_text.delta');
+        expect(text).toContain('"delta":"Hello"');
+        expect(text).toContain('"delta":" world"');
+        expect(text).toContain('event: response.output_text.done');
+        expect(text).toContain('event: response.completed');
+        expect(text).toContain('data: [DONE]');
+
+        const completedEvent = text.slice(text.indexOf('event: response.completed'));
+        expect(completedEvent).toContain('"status":"completed"');
+        expect(completedEvent).toContain('"output_text":"Hello world"');
+        expect(completedEvent).toContain('"input_tokens":2');
+        expect(completedEvent).toContain('"output_tokens":2');
+
+        expect(store.getStats('test-upstream').requests).toBe(1);
+      } finally {
+        globalThis.fetch = originalFetch;
+        store.close();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('handles empty chat response content in non-streaming responses', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'agentmux-server-'));
+      const config = fixtureConfig(join(dir, 'usage.sqlite'));
+      const originalFetch = globalThis.fetch;
+      const store = new UsageStore(config.database.path);
+      try {
+        globalThis.fetch = (async () =>
+          Response.json({
+            id: 'chatcmpl-empty',
+            object: 'chat.completion',
+            choices: [{ index: 0, message: { role: 'assistant', content: '' } }],
+            usage: null
+          })) satisfies typeof fetch;
+        const app = createApp(config, store);
+        const response = await authedResponses(app, {
+          model: 'test-model',
+          input: 'hi'
+        });
+        const json = await expectJsonStatus<{
+          output_text: string;
+          usage: null;
+        }>(response, 200);
+        expect(json.output_text).toBe('');
+        expect(json.usage).toBeNull();
+      } finally {
+        globalThis.fetch = originalFetch;
+        store.close();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('handles non-string non-array input values', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'agentmux-server-'));
+      const config = fixtureConfig(join(dir, 'usage.sqlite'));
+      const originalFetch = globalThis.fetch;
+      const store = new UsageStore(config.database.path);
+      let capturedBody: Record<string, unknown> | undefined;
+      try {
+        globalThis.fetch = (async (_input, init) => {
+          capturedBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+          return Response.json({
+            id: 'chatcmpl-num',
+            choices: [{ index: 0, message: { role: 'assistant', content: 'ok' } }],
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+          });
+        }) satisfies typeof fetch;
+        const app = createApp(config, store);
+        const response = await authedResponses(app, {
+          model: 'test-model',
+          input: 42
+        });
+        expect(response.status).toBe(200);
+        const messages = capturedBody?.messages as
+          | Array<{ role: string; content: string }>
+          | undefined;
+        expect(messages).toEqual([{ role: 'user', content: '42' }]);
+      } finally {
+        globalThis.fetch = originalFetch;
+        store.close();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('handles mixed input parts with strings and input_text', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'agentmux-server-'));
+      const config = fixtureConfig(join(dir, 'usage.sqlite'));
+      const originalFetch = globalThis.fetch;
+      const store = new UsageStore(config.database.path);
+      let capturedBody: Record<string, unknown> | undefined;
+      try {
+        globalThis.fetch = (async (_input, init) => {
+          capturedBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+          return Response.json({
+            id: 'chatcmpl-mix',
+            choices: [{ index: 0, message: { role: 'assistant', content: 'ok' } }],
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+          });
+        }) satisfies typeof fetch;
+        const app = createApp(config, store);
+        const response = await authedResponses(app, {
+          model: 'test-model',
+          input: ['plain string', { type: 'input_text', text: 'structured' }, null, undefined]
+        });
+        expect(response.status).toBe(200);
+        const messages = capturedBody?.messages as
+          | Array<{ role: string; content: string }>
+          | undefined;
+        expect(messages).toEqual([{ role: 'user', content: 'plain stringstructured' }]);
+      } finally {
+        globalThis.fetch = originalFetch;
+        store.close();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('handles content arrays with text type parts in non-streaming', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'agentmux-server-'));
+      const config = fixtureConfig(join(dir, 'usage.sqlite'));
+      const originalFetch = globalThis.fetch;
+      const store = new UsageStore(config.database.path);
+      try {
+        globalThis.fetch = (async () =>
+          Response.json({
+            id: 'chatcmpl-content',
+            choices: [
+              {
+                index: 0,
+                message: {
+                  role: 'assistant',
+                  content: [
+                    { type: 'text', text: 'Part A' },
+                    { type: 'text', text: 'Part B' }
+                  ]
+                }
+              }
+            ],
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+          })) satisfies typeof fetch;
+        const app = createApp(config, store);
+        const response = await authedResponses(app, {
+          model: 'test-model',
+          input: 'hi'
+        });
+        const json = await expectJsonStatus<{ output_text: string }>(response, 200);
+        expect(json.output_text).toBe('Part APart B');
+      } finally {
+        globalThis.fetch = originalFetch;
+        store.close();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('handles mixed text arrays in non-streaming chat response content', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'agentmux-server-'));
+      const config = fixtureConfig(join(dir, 'usage.sqlite'));
+      const originalFetch = globalThis.fetch;
+      const store = new UsageStore(config.database.path);
+      try {
+        globalThis.fetch = (async () =>
+          Response.json({
+            id: 'chatcmpl-mixed-content',
+            choices: [
+              {
+                index: 0,
+                message: {
+                  role: 'assistant',
+                  content: ['Plain ', { type: 'text', text: 'structured' }, { type: 'image' }]
+                }
+              }
+            ],
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+          })) satisfies typeof fetch;
+        const app = createApp(config, store);
+        const response = await authedResponses(app, {
+          model: 'test-model',
+          input: 'hi'
+        });
+        const json = await expectJsonStatus<{ output_text: string }>(response, 200);
+        expect(json.output_text).toBe('Plain structured');
+      } finally {
+        globalThis.fetch = originalFetch;
+        store.close();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('handles streaming with no content deltas', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'agentmux-server-'));
+      const config = fixtureConfig(join(dir, 'usage.sqlite'));
+      const originalFetch = globalThis.fetch;
+      const store = new UsageStore(config.database.path);
+      try {
+        globalThis.fetch = (async () =>
+          new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                const encoder = new TextEncoder();
+                controller.enqueue(
+                  encoder.encode(
+                    'data: {"id":"chatcmpl-x","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant"}}]}\n\ndata: [DONE]\n\n'
+                  )
+                );
+                controller.close();
+              }
+            }),
+            { headers: { 'Content-Type': 'text/event-stream' } }
+          )) satisfies typeof fetch;
+
+        const app = createApp(config, store);
+        const response = await authedResponses(app, {
+          model: 'test-model',
+          input: 'hi',
+          stream: true
+        });
+        const text = await response.text();
+        expect(response.status).toBe(200);
+        expect(text).toContain('event: response.created');
+        expect(text).toContain('event: response.output_item.added');
+        expect(text).toContain('event: response.content_part.added');
+        expect(text).toContain('event: response.output_text.done');
+        expect(text).toContain('event: response.completed');
+        expect(text).toContain('data: [DONE]');
+      } finally {
+        globalThis.fetch = originalFetch;
+        store.close();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('handles streaming chunk flush when stream ends mid-chunk', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'agentmux-server-'));
+      const config = fixtureConfig(join(dir, 'usage.sqlite'));
+      const originalFetch = globalThis.fetch;
+      const store = new UsageStore(config.database.path);
+      try {
+        globalThis.fetch = (async () =>
+          new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                const encoder = new TextEncoder();
+                controller.enqueue(
+                  encoder.encode('data: {"choices":[{"delta":{"content":"flushed"}}]}')
+                );
+                controller.close();
+              }
+            }),
+            { headers: { 'Content-Type': 'text/event-stream' } }
+          )) satisfies typeof fetch;
+
+        const app = createApp(config, store);
+        const response = await authedResponses(app, {
+          model: 'test-model',
+          input: 'hi',
+          stream: true
+        });
+        const text = await response.text();
+        expect(response.status).toBe(200);
+        expect(text).toContain('"text":"flushed"');
+        expect(text).toContain('event: response.completed');
+        expect(text).toContain('data: [DONE]');
+      } finally {
+        globalThis.fetch = originalFetch;
+        store.close();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('ignores malformed streaming chat chunks and still completes', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'agentmux-server-'));
+      const config = fixtureConfig(join(dir, 'usage.sqlite'));
+      const originalFetch = globalThis.fetch;
+      const store = new UsageStore(config.database.path);
+      try {
+        globalThis.fetch = (async () =>
+          new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                const encoder = new TextEncoder();
+                controller.enqueue(encoder.encode('data: not-json\n\ndata: [DONE]\n\n'));
+                controller.close();
+              }
+            }),
+            { headers: { 'Content-Type': 'text/event-stream' } }
+          )) satisfies typeof fetch;
+
+        const app = createApp(config, store);
+        const response = await authedResponses(app, {
+          model: 'test-model',
+          input: 'hi',
+          stream: true
+        });
+        const text = await response.text();
+        expect(response.status).toBe(200);
+        expect(text).toContain('event: response.created');
+        expect(text).toContain('event: response.completed');
+        expect(text).toContain('data: [DONE]');
+      } finally {
+        globalThis.fetch = originalFetch;
+        store.close();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('handles non-string non-array message content', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'agentmux-server-'));
+      const config = fixtureConfig(join(dir, 'usage.sqlite'));
+      const originalFetch = globalThis.fetch;
+      const store = new UsageStore(config.database.path);
+      try {
+        globalThis.fetch = (async () =>
+          Response.json({
+            id: 'chatcmpl-obj',
+            choices: [
+              {
+                index: 0,
+                message: { role: 'assistant', content: { value: 'wrapped' } }
+              }
+            ],
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+          })) satisfies typeof fetch;
+        const app = createApp(config, store);
+        const response = await authedResponses(app, {
+          model: 'test-model',
+          input: 'hi'
+        });
+        const json = await expectJsonStatus<{ output_text: string }>(response, 200);
+        expect(json.output_text).toBe('[object Object]');
+      } finally {
+        globalThis.fetch = originalFetch;
+        store.close();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  });
 });
 
 async function authedChat(
@@ -1209,6 +1935,20 @@ async function authedChat(
   body: Record<string, unknown>
 ): Promise<Response> {
   return app.request('/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer local-test-key-that-is-long-enough',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+}
+
+async function authedResponses(
+  app: ReturnType<typeof createApp>,
+  body: Record<string, unknown>
+): Promise<Response> {
+  return app.request('/v1/responses', {
     method: 'POST',
     headers: {
       Authorization: 'Bearer local-test-key-that-is-long-enough',

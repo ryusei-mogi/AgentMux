@@ -15,7 +15,7 @@ If you are setting up AgentMux for the first time, start with the documentation 
 
 ## Features
 
-- OpenAI-compatible `GET /v1/models` and `POST /v1/chat/completions`
+- OpenAI-compatible `GET /v1/models`, `POST /v1/chat/completions`, and `POST /v1/responses` (Codex CLI `wire_api="responses"`)
 - Non-streaming and streaming chat completion proxying
 - Multiple OpenAI-compatible upstreams and model aliases
 - Native Anthropic Messages upstreams exposed through the local OpenAI-compatible API
@@ -38,7 +38,7 @@ npm install -g @ryusei-mogi/agentmux
 Or install the GitHub release tarball directly:
 
 ```bash
-npm install -g https://github.com/ryusei-mogi/AgentMux/releases/download/v0.5.1/ryusei-mogi-agentmux-0.5.1.tgz
+npm install -g https://github.com/ryusei-mogi/AgentMux/releases/download/v0.6.0/ryusei-mogi-agentmux-0.6.0.tgz
 ```
 
 Or with Homebrew:
@@ -108,6 +108,32 @@ curl http://127.0.0.1:8787/v1/chat/completions \
   -H 'Content-Type: application/json' \
   -d '{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"hello"}]}'
 ```
+
+### Responses API (Codex CLI)
+
+Codex CLI 0.130.0+ uses `POST /v1/responses` with `wire_api="responses"`. AgentMux translates Responses API requests into chat completions internally:
+
+```bash
+curl http://127.0.0.1:8787/v1/responses \
+  -H "Authorization: Bearer $AGENTMUX_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"deepseek-v4-flash","input":"hello","instructions":"Be concise."}'
+```
+
+Codex configuration example (`~/.codex/config.toml`):
+
+```toml
+model = "deepseek-chat"
+model_provider = "agentmux"
+
+[model_providers.agentmux]
+name = "AgentMux"
+base_url = "http://127.0.0.1:8787/v1"
+wire_api = "responses"
+experimental_bearer_token = "local-agentmux-key"
+```
+
+Non-streaming responses return a Responses API JSON shape with `object: "response"`, `output`, `output_text`, and `usage` fields. Streaming responses emit `response.created`, `response.output_item.added`, `response.content_part.added`, `response.output_text.delta`, `response.output_text.done`, and `response.completed` SSE events.
 
 Streaming fallback works before a stream starts. If an upstream returns 429 or 5xx before sending bytes, AgentMux retries another upstream. After streaming has started, AgentMux cannot switch providers mid-generation; the next LLM request will be routed again.
 

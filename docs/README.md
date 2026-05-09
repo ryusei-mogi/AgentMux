@@ -33,5 +33,5 @@ Both guides cover the same topics:
 
 - npm install: `npm install -g @ryusei-mogi/agentmux`
 - Homebrew install: `brew install ryusei-mogi/AgentMux/agentmux`
-- GitHub Release: <https://github.com/ryusei-mogi/AgentMux/releases/tag/v0.5.1>
+- GitHub Release: <https://github.com/ryusei-mogi/AgentMux/releases/tag/v0.6.0>
 - npm package: <https://www.npmjs.com/package/@ryusei-mogi/agentmux>
