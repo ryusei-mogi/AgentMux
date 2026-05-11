@@ -27,6 +27,10 @@ If you are setting up AgentMux for the first time, start with the documentation 
 - Local dashboard at `/dashboard`
 - Health check at `/health`
 
+## For AI Agents
+
+If you are an AI coding agent asked to install AgentMux, read [`AGENTS.md`](AGENTS.md) for step-by-step instructions.
+
 ## Install
 
 ```bash

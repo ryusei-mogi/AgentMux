@@ -10,6 +10,7 @@
   "files": [
     "dist",
     "examples",
+    "AGENTS.md",
     "README.md",
     "SECURITY.md",
     "LICENSE"
