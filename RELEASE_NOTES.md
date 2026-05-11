@@ -1,3 +1,41 @@
+# Release Notes - v0.7.0
+
+## Highlights
+
+AgentMux is now a dedicated OpenCode GO multi-account manager. All non-OpenCode-GO features have been removed to simplify the codebase and focus on the core use case: bundling multiple OpenCode GO subscription accounts behind a single local OpenAI-compatible API.
+
+## Removed
+
+- **`/v1/responses` endpoint** (Codex CLI `wire_api="responses"`). OpenCode uses standard `/v1/chat/completions`.
+- **Anthropic Messages upstreams** (`type: anthropic-messages`). AgentMux no longer translates between OpenAI and Anthropic APIs.
+- **CLI backend upstreams** (`type: cli-backend`). AgentMux no longer routes to local Codex CLI or Claude Code processes.
+- **LiteLLM import** (`agentmux import-litellm`). No longer needed for the focused use case.
+- **Non-OpenCode-GO provider presets**: `openai`, `anthropic`, `deepseek`, `openrouter`, `kimi`, `qwen`, `zen-balance`, `codex-cli`, `claude-cli`.
+- **Routing strategies**: `cheapest`, `weighted_round_robin`, `fallback`. Remaining strategies are `quota_aware` (default), `least_used`, and `round_robin`.
+
+## Kept
+
+- `/v1/models` and `/v1/chat/completions` endpoints
+- Multi-account routing with circuit breaker (healthy/cooldown/probation/disabled)
+- Quota-aware balancing across OpenCode GO accounts
+- SQLite usage tracking with dashboard and health check
+- CLI management: `init`, `serve`, `status`, `upstream`, `usage`
+- Budget management per account
+- OpenCode GO preset (`opencode-go`)
+
+## Codebase Impact
+
+- Source files: 17 → 13 (-4 files)
+- `src/upstream.ts`: 1031 → ~350 lines
+- Total code reduction: ~1,500 lines removed
+
+## Compatibility
+
+- **Breaking**: Configs using `type: anthropic-messages`, `type: cli-backend`, `/v1/responses`, or removed routing strategies must be updated.
+- OpenCode GO multi-account configs (`type: openai-compatible` with `opencode.ai/zen/go/v1`) continue to work unchanged.
+
+---
+
 # Release Notes - v0.6.0
 
 ## Highlights

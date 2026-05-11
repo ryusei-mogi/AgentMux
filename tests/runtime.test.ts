@@ -185,19 +185,6 @@ describe('AgentMuxRuntime', () => {
           api_key: 'plaintext-upstream-key',
           strategy_weight: 1,
           models: { 'test-model': 'test-model' }
-        },
-        {
-          id: 'cli-upstream',
-          type: 'cli-backend',
-          command: 'codex',
-          args: [],
-          env: { CODEX_HOME: '.codex-main' },
-          env_unset: [],
-          input: 'arg',
-          output: 'jsonl',
-          serialize: true,
-          strategy_weight: 1,
-          models: { 'cli-model': 'gpt-5.4' }
         }
       ]
     });
@@ -208,9 +195,7 @@ describe('AgentMuxRuntime', () => {
         'server_auth_unauthenticated',
         'server_plaintext_api_key',
         'database_path_not_absolute',
-        'upstream_plaintext_api_key',
-        'cli_command_not_absolute',
-        'cli_profile_path_not_absolute'
+        'upstream_plaintext_api_key'
       ])
     );
 
@@ -223,19 +208,6 @@ describe('AgentMuxRuntime', () => {
           api_key_env: 'HTTP_UPSTREAM_KEY',
           strategy_weight: 1,
           models: { 'test-model': 'test-model' }
-        },
-        {
-          id: 'cli-upstream',
-          type: 'cli-backend',
-          command: process.execPath,
-          args: [],
-          env: { CODEX_HOME: tmpdir() },
-          env_unset: [],
-          input: 'arg',
-          output: 'jsonl',
-          serialize: true,
-          strategy_weight: 1,
-          models: { 'cli-model': 'gpt-5.4' }
         }
       ]
     });
@@ -257,32 +229,12 @@ describe('AgentMuxRuntime', () => {
           base_url: 'https://example.com/v1',
           strategy_weight: 1,
           models: { 'test-model': 'test-model' }
-        },
-        {
-          id: 'cli-upstream',
-          type: 'cli-backend',
-          command: join(tmpdir(), 'definitely-missing-agentmux-cli'),
-          cwd: 'relative-workdir',
-          args: [],
-          env: { OTHER_VALUE: 'relative-ok', CLAUDE_CONFIG_DIR: 'relative-profile' },
-          env_unset: [],
-          input: 'arg',
-          output: 'jsonl',
-          serialize: true,
-          strategy_weight: 1,
-          models: { 'cli-model': 'gpt-5.4' }
         }
       ]
     });
 
     expect(validateForMacApp(missingAuthAndUpstreamKey).map((item) => item.code)).toEqual(
-      expect.arrayContaining([
-        'server_auth_missing',
-        'upstream_api_key_env_missing',
-        'cli_command_not_found',
-        'cli_cwd_not_absolute',
-        'cli_profile_path_not_absolute'
-      ])
+      expect.arrayContaining(['server_auth_missing', 'upstream_api_key_env_missing'])
     );
     expect(
       validateForMacApp(
@@ -356,8 +308,7 @@ function macValidationConfig(overrides: Partial<AppConfig> = {}): AppConfig {
       cooldown: { rate_limit_seconds: 900, server_error_seconds: 300, timeout_seconds: 180 }
     },
     models: {
-      'test-model': { upstreams: ['http-upstream'] },
-      'cli-model': { upstreams: ['cli-upstream'] }
+      'test-model': { upstreams: ['http-upstream'] }
     },
     upstreams: [],
     ...overrides

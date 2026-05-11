@@ -79,19 +79,10 @@ function orderCandidates(
   store: UsageStore,
   model: string
 ): Candidate[] {
-  if (strategy === 'fallback') return candidates;
   if (strategy === 'least_used')
     return [...candidates].sort((a, b) => a.stats.requests - b.stats.requests);
-  if (strategy === 'cheapest') return [...candidates].sort((a, b) => costWeight(a) - costWeight(b));
   if (strategy === 'quota_aware') return [...candidates].sort((a, b) => b.score - a.score);
-  if (strategy === 'weighted_round_robin') return weightedRoundRobin(candidates, store, model);
   return roundRobin(candidates, store, model);
-}
-
-function costWeight(candidate: Candidate): number {
-  const pricing = candidate.upstream.pricing;
-  if (!pricing) return 0;
-  return (pricing.input_per_million ?? 0) + (pricing.output_per_million ?? 0);
 }
 
 function roundRobin(candidates: Candidate[], store: UsageStore, model: string): Candidate[] {
@@ -100,27 +91,6 @@ function roundRobin(candidates: Candidate[], store: UsageStore, model: string): 
   store.setKv(key, String((index + 1) % candidates.length));
   return rotate(candidates, index % candidates.length);
 }
-
-function weightedRoundRobin(
-  candidates: Candidate[],
-  store: UsageStore,
-  model: string
-): Candidate[] {
-  const expanded = candidates.flatMap((candidate) =>
-    Array.from(
-      { length: Math.max(1, Math.round(candidate.upstream.strategy_weight * 10)) },
-      () => candidate
-    )
-  );
-  const ordered = roundRobin(expanded, store, `weighted:${model}`);
-  const seen = new Set<string>();
-  return ordered.filter((candidate) => {
-    if (seen.has(candidate.upstream.id)) return false;
-    seen.add(candidate.upstream.id);
-    return true;
-  });
-}
-
 function rotate<T>(values: T[], index: number): T[] {
   return [...values.slice(index), ...values.slice(0, index)];
 }

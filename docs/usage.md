@@ -169,7 +169,7 @@ curl http://127.0.0.1:8787/v1/chat/completions \
   -H "Authorization: Bearer $AGENTMUX_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{
-    "model": "deepseek-chat",
+    "model": "deepseek-v4-flash",
     "messages": [
       { "role": "user", "content": "Say hello from AgentMux." }
     ]
@@ -199,7 +199,7 @@ The client only knows about AgentMux:
 ```text
 base_url: http://127.0.0.1:8787/v1
 api_key:  your AGENTMUX_API_KEY
-model:    an AgentMux logical model such as deepseek-chat
+model:    an AgentMux logical model such as deepseek-v4-flash
 ```
 
 ### Logical Model
@@ -208,11 +208,11 @@ A logical model is the model name clients request from AgentMux, such as:
 
 ```yaml
 models:
-  deepseek-chat:
+  deepseek-v4-flash:
     upstreams: [opencode-go-a, opencode-go-b, opencode-go-c]
 ```
 
-Clients request `deepseek-chat`. AgentMux then chooses one of the upstreams listed for that logical model.
+Clients request `deepseek-v4-flash`. AgentMux then chooses one of the upstreams listed for that logical model.
 
 ### Upstream
 
@@ -225,7 +225,7 @@ upstreams:
     base_url: https://opencode.ai/zen/go/v1
     api_key_env: OPENCODE_GO_A_KEY
     models:
-      deepseek-chat: deepseek-chat
+      deepseek-v4-flash: deepseek-v4-flash
 ```
 
 AgentMux calls:
@@ -242,7 +242,7 @@ The left side is the AgentMux logical model name. The right side is the provider
 
 ```yaml
 models:
-  deepseek-chat: deepseek-chat
+  deepseek-v4-flash: deepseek-v4-flash
   qwen-coder: qwen/qwen-2.5-coder-32b-instruct
 ```
 
@@ -291,7 +291,7 @@ routing:
     timeout_seconds: 180
 
 models:
-  deepseek-chat:
+  deepseek-v4-flash:
     upstreams: [opencode-go-a, opencode-go-b, opencode-go-c]
   qwen-coder:
     upstreams: [opencode-go-a, opencode-go-b, opencode-go-c]
@@ -311,7 +311,7 @@ upstreams:
       input_per_million: 0
       output_per_million: 0
     models:
-      deepseek-chat: deepseek-chat
+      deepseek-v4-flash: deepseek-v4-flash
       qwen-coder: qwen-coder
       kimi-k2: kimi-k2
 ```
@@ -383,14 +383,14 @@ Fields:
 
 ```yaml
 models:
-  deepseek-chat:
+  deepseek-v4-flash:
     upstreams: [deepseek-main, openrouter-fallback]
     strategy: fallback
 ```
 
 Fields:
 
-- The key, `deepseek-chat`, is the logical model clients request.
+- The key, `deepseek-v4-flash`, is the logical model clients request.
 - `upstreams` is the ordered set of upstream IDs allowed for that logical model.
 - `strategy` is optional and overrides `routing.default_strategy` for that model.
 
@@ -402,18 +402,18 @@ Every upstream referenced in a route must exist in `upstreams`.
 upstreams:
   - id: deepseek-main
     type: openai-compatible
-    base_url: https://api.deepseek.com/v1
+    base_url: https://api.deepseek.com
     api_key_env: DEEPSEEK_API_KEY
     strategy_weight: 1
     budget:
       window: daily
       limit_usd: 5
     pricing:
-      input_per_million: 0.27
-      output_per_million: 1.1
-      cached_input_per_million: 0.07
+      input_per_million: 0.14
+      output_per_million: 0.28
+      cached_input_per_million: 0.0028
     models:
-      deepseek-chat: deepseek-chat
+      deepseek-v4-flash: deepseek-v4-flash
 ```
 
 Fields:
@@ -488,7 +488,7 @@ Use this when you have a preferred primary provider and one or more backups:
 
 ```yaml
 models:
-  deepseek-chat:
+  deepseek-v4-flash:
     strategy: fallback
     upstreams: [deepseek-main, openrouter-backup]
 ```
@@ -578,9 +578,9 @@ Pricing example:
 
 ```yaml
 pricing:
-  input_per_million: 0.27
-  output_per_million: 1.1
-  cached_input_per_million: 0.07
+  input_per_million: 0.14
+  output_per_million: 0.28
+  cached_input_per_million: 0.0028
 ```
 
 ## Cooldowns and Failover
@@ -626,7 +626,7 @@ Example response:
   "object": "list",
   "data": [
     {
-      "id": "deepseek-chat",
+      "id": "deepseek-v4-flash",
       "object": "model",
       "created": 0,
       "owned_by": "agentmux"
@@ -642,7 +642,7 @@ curl http://127.0.0.1:8787/v1/chat/completions \
   -H "Authorization: Bearer $AGENTMUX_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{
-    "model": "deepseek-chat",
+    "model": "deepseek-v4-flash",
     "messages": [
       { "role": "system", "content": "You are concise." },
       { "role": "user", "content": "What is AgentMux?" }
@@ -657,7 +657,7 @@ curl -N http://127.0.0.1:8787/v1/chat/completions \
   -H "Authorization: Bearer $AGENTMUX_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{
-    "model": "deepseek-chat",
+    "model": "deepseek-v4-flash",
     "stream": true,
     "messages": [
       { "role": "user", "content": "Stream a short answer." }
@@ -676,7 +676,7 @@ curl http://127.0.0.1:8787/v1/responses \
   -H "Authorization: Bearer $AGENTMUX_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{
-    "model": "deepseek-chat",
+    "model": "deepseek-v4-flash",
     "input": "What is AgentMux?",
     "instructions": "Be concise."
   }'
@@ -689,7 +689,7 @@ curl -N http://127.0.0.1:8787/v1/responses \
   -H "Authorization: Bearer $AGENTMUX_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{
-    "model": "deepseek-chat",
+    "model": "deepseek-v4-flash",
     "stream": true,
     "input": "Write a haiku about code."
   }'
@@ -702,7 +702,7 @@ Non-streaming responses follow the Responses API shape: `object: "response"`, `s
 Codex CLI configuration example (`~/.codex/config.toml` or `CODEX_HOME/config.toml`):
 
 ```toml
-model = "deepseek-chat"
+model = "deepseek-v4-flash"
 model_provider = "agentmux"
 
 [model_providers.agentmux]
@@ -728,14 +728,14 @@ Example config: `examples/opencode.json`.
         "baseURL": "http://127.0.0.1:8787/v1"
       },
       "models": {
-        "deepseek-chat": { "name": "DeepSeek Chat via AgentMux" },
+        "deepseek-v4-flash": { "name": "DeepSeek V4 Flash via AgentMux" },
         "qwen-coder": { "name": "Qwen Coder via AgentMux" },
         "kimi-k2": { "name": "Kimi K2 via AgentMux" }
       }
     }
   },
-  "model": "agentmux/deepseek-chat",
-  "small_model": "agentmux/deepseek-chat"
+  "model": "agentmux/deepseek-v4-flash",
+  "small_model": "agentmux/deepseek-v4-flash"
 }
 ```
 
@@ -764,7 +764,7 @@ const client = new OpenAI({
 });
 
 const result = await client.chat.completions.create({
-  model: 'deepseek-chat',
+  model: 'deepseek-v4-flash',
   messages: [{ role: 'user', content: 'Hello through AgentMux' }]
 });
 
@@ -923,8 +923,8 @@ Given:
 model_list:
   - model_name: deepseek-v4-flash
     litellm_params:
-      model: deepseek/deepseek-chat
-      api_base: https://api.deepseek.com/v1
+      model: deepseek/deepseek-v4-flash
+      api_base: https://api.deepseek.com
       api_key: os.environ/DEEPSEEK_API_KEY
 ```
 
@@ -972,7 +972,7 @@ Presets are snippets for upstream configuration. You still need to choose an `id
 
 ```yaml
 models:
-  deepseek-chat:
+  deepseek-v4-flash:
     upstreams: [account-a, account-b, account-c]
     strategy: round_robin
 
@@ -982,42 +982,42 @@ upstreams:
     base_url: https://opencode.ai/zen/go/v1
     api_key_env: ACCOUNT_A_KEY
     models:
-      deepseek-chat: deepseek-chat
+      deepseek-v4-flash: deepseek-v4-flash
   - id: account-b
     type: openai-compatible
     base_url: https://opencode.ai/zen/go/v1
     api_key_env: ACCOUNT_B_KEY
     models:
-      deepseek-chat: deepseek-chat
+      deepseek-v4-flash: deepseek-v4-flash
   - id: account-c
     type: openai-compatible
     base_url: https://opencode.ai/zen/go/v1
     api_key_env: ACCOUNT_C_KEY
     models:
-      deepseek-chat: deepseek-chat
+      deepseek-v4-flash: deepseek-v4-flash
 ```
 
 ### Primary Provider with Backup Provider
 
 ```yaml
 models:
-  deepseek-chat:
+  deepseek-v4-flash:
     strategy: fallback
     upstreams: [deepseek-main, openrouter-backup]
 
 upstreams:
   - id: deepseek-main
     type: openai-compatible
-    base_url: https://api.deepseek.com/v1
+    base_url: https://api.deepseek.com
     api_key_env: DEEPSEEK_API_KEY
     models:
-      deepseek-chat: deepseek-chat
+      deepseek-v4-flash: deepseek-v4-flash
   - id: openrouter-backup
     type: openai-compatible
     base_url: https://openrouter.ai/api/v1
     api_key_env: OPENROUTER_API_KEY
     models:
-      deepseek-chat: deepseek/deepseek-chat
+      deepseek-v4-flash: deepseek/deepseek-v4-flash
 ```
 
 ### Cost-Aware Routing
@@ -1038,13 +1038,13 @@ upstreams:
       input_per_million: 0.2
       output_per_million: 0.8
     models:
-      deepseek-chat: deepseek-chat
+      deepseek-v4-flash: deepseek-v4-flash
   - id: expensive-fast
     pricing:
       input_per_million: 1
       output_per_million: 4
     models:
-      deepseek-chat: deepseek-chat
+      deepseek-v4-flash: deepseek-v4-flash
 ```
 
 ### Browser Client with CORS

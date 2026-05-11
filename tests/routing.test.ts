@@ -22,31 +22,7 @@ describe('RouterEngine', () => {
     }
   });
 
-  it('routes CLI backends alongside HTTP upstreams', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'agentmux-routing-'));
-    const store = new UsageStore(join(dir, 'usage.sqlite'));
-    try {
-      const config = fixtureConfig();
-      config.models['test-model'] = { upstreams: ['a', 'cli-a'], strategy: 'fallback' };
-      config.upstreams.push({
-        id: 'cli-a',
-        type: 'cli-backend',
-        command: 'codex',
-        args: ['exec', '--json'],
-        output: 'jsonl',
-        strategy_weight: 1,
-        models: { 'test-model': 'gpt-5.4' }
-      });
-      const candidates = new RouterEngine(config, store).select('test-model');
-      expect(candidates.map((candidate) => candidate.upstream.id)).toEqual(['a', 'cli-a']);
-      expect(candidates[1]?.upstreamModel).toBe('gpt-5.4');
-    } finally {
-      store.close();
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('orders candidates by fallback, least-used, cheapest, and quota-aware strategies', () => {
+  it('orders candidates by least_used and quota_aware strategies', () => {
     withStore((store) => {
       const config = fixtureConfig();
       config.upstreams[0] = {
@@ -64,45 +40,23 @@ describe('RouterEngine', () => {
       recordUsage(store, 'a', 2, 0.02);
       recordUsage(store, 'b', 1, 0.01);
 
-      config.models['test-model'] = { upstreams: ['a', 'b', 'c'], strategy: 'fallback' };
-      expect(
-        new RouterEngine(config, store).select('test-model').map((c) => c.upstream.id)
-      ).toEqual(['a', 'b', 'c']);
-
       config.models['test-model'] = { upstreams: ['a', 'b', 'c'], strategy: 'least_used' };
       expect(
         new RouterEngine(config, store).select('test-model').map((c) => c.upstream.id)
       ).toEqual(['c', 'b', 'a']);
-
-      config.models['test-model'] = { upstreams: ['a', 'b', 'c'], strategy: 'cheapest' };
-      expect(
-        new RouterEngine(config, store).select('test-model').map((c) => c.upstream.id)
-      ).toEqual(['b', 'c', 'a']);
 
       config.models['test-model'] = { upstreams: ['a', 'b', 'c'], strategy: 'quota_aware' };
       expect(new RouterEngine(config, store).select('test-model')[0]?.upstream.id).toBe('b');
     });
   });
 
-  it('rotates round-robin and weighted round-robin candidates', () => {
+  it('rotates round-robin candidates', () => {
     withStore((store) => {
       const config = fixtureConfig();
       config.models['test-model'] = { upstreams: ['a', 'b', 'c'], strategy: 'round_robin' };
       const router = new RouterEngine(config, store);
       expect(router.select('test-model').map((c) => c.upstream.id)).toEqual(['a', 'b', 'c']);
       expect(router.select('test-model').map((c) => c.upstream.id)).toEqual(['b', 'c', 'a']);
-
-      config.models['test-model'] = {
-        upstreams: ['a', 'b', 'c'],
-        strategy: 'weighted_round_robin'
-      };
-      config.upstreams[0] = { ...config.upstreams[0], strategy_weight: 0.1 };
-      config.upstreams[1] = { ...config.upstreams[1], strategy_weight: 0.3 };
-      config.upstreams[2] = { ...config.upstreams[2], strategy_weight: 0.1 };
-      store.setKv('rr:weighted:test-model', '1');
-      expect(
-        new RouterEngine(config, store).select('test-model').map((c) => c.upstream.id)
-      ).toEqual(['b', 'c', 'a']);
     });
   });
 
@@ -111,7 +65,7 @@ describe('RouterEngine', () => {
       const config = fixtureConfig();
       config.models['test-model'] = {
         upstreams: ['missing', 'a', 'b', 'c'],
-        strategy: 'fallback'
+        strategy: 'round_robin'
       };
       config.upstreams[1] = { ...config.upstreams[1], models: { other: 'other' } };
       config.upstreams[2] = {
@@ -225,7 +179,7 @@ function fixtureConfig(): AppConfig {
     server: { host: '127.0.0.1', port: 8787 },
     database: { path: ':memory:' },
     routing: {
-      default_strategy: 'fallback',
+      default_strategy: 'quota_aware',
       retry_attempts: 3,
       request_timeout_seconds: 1,
       cooldown: { rate_limit_seconds: 60, server_error_seconds: 60, timeout_seconds: 60 }

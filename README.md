@@ -80,7 +80,7 @@ Point OpenCode or any OpenAI-compatible client at:
 ```text
 base_url: http://127.0.0.1:8787/v1
 api_key: value of AGENTMUX_API_KEY
-model: deepseek-chat
+model: deepseek-v4-flash
 ```
 
 ## Security Defaults
@@ -123,7 +123,7 @@ curl http://127.0.0.1:8787/v1/responses \
 Codex configuration example (`~/.codex/config.toml`):
 
 ```toml
-model = "deepseek-chat"
+model = "deepseek-v4-flash"
 model_provider = "agentmux"
 
 [model_providers.agentmux]
@@ -281,13 +281,13 @@ Configure OpenCode as a custom OpenAI-compatible provider. See [examples/opencod
         "baseURL": "http://127.0.0.1:8787/v1"
       },
       "models": {
-        "deepseek-chat": { "name": "DeepSeek Chat via AgentMux" },
+        "deepseek-v4-flash": { "name": "DeepSeek V4 Flash via AgentMux" },
         "qwen-coder": { "name": "Qwen Coder via AgentMux" },
         "kimi-k2": { "name": "Kimi K2 via AgentMux" }
       }
     }
   },
-  "model": "agentmux/deepseek-chat"
+  "model": "agentmux/deepseek-v4-flash"
 }
 ```
 

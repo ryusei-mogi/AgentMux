@@ -1,16 +1,10 @@
 export type UpstreamState = 'healthy' | 'cooldown' | 'probation' | 'disabled';
 
-export type RoutingStrategy =
-  | 'least_used'
-  | 'round_robin'
-  | 'weighted_round_robin'
-  | 'cheapest'
-  | 'fallback'
-  | 'quota_aware';
+export type RoutingStrategy = 'least_used' | 'round_robin' | 'quota_aware';
 
 export type BudgetWindow = 'daily' | 'weekly' | 'monthly' | `${number}h`;
 
-export type UpstreamType = 'openai-compatible' | 'anthropic-messages' | 'cli-backend';
+export type UpstreamType = 'openai-compatible';
 
 export interface ServerConfig {
   host: string;
@@ -68,33 +62,7 @@ export interface OpenAICompatibleUpstreamConfig extends HttpUpstreamConfig {
   type: 'openai-compatible';
 }
 
-export interface AnthropicMessagesUpstreamConfig extends HttpUpstreamConfig {
-  type: 'anthropic-messages';
-  anthropic_version?: string | undefined;
-  default_max_tokens?: number | undefined;
-}
-
-export type CliBackendInputMode = 'arg' | 'stdin';
-export type CliBackendOutputMode = 'text' | 'json' | 'jsonl';
-
-export interface CliBackendUpstreamConfig extends BaseUpstreamConfig {
-  type: 'cli-backend';
-  command: string;
-  args?: string[] | undefined;
-  env?: Record<string, string> | undefined;
-  env_unset?: string[] | undefined;
-  cwd?: string | undefined;
-  input?: CliBackendInputMode | undefined;
-  output?: CliBackendOutputMode | undefined;
-  model_arg?: string | undefined;
-  timeout_seconds?: number | undefined;
-  serialize?: boolean | undefined;
-}
-
-export type UpstreamConfig =
-  | OpenAICompatibleUpstreamConfig
-  | AnthropicMessagesUpstreamConfig
-  | CliBackendUpstreamConfig;
+export type UpstreamConfig = OpenAICompatibleUpstreamConfig;
 
 export interface ModelRouteConfig {
   upstreams: string[];

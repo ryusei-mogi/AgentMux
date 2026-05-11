@@ -10,12 +10,7 @@ describe('CLI program', () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     try {
       await runCli(['preset', 'list']);
-      expect(log.mock.calls.at(-1)?.[0]).toContain('openai');
-
-      await runCli(['preset', 'show', 'openai']);
-      expect(log.mock.calls.at(-1)?.[0]).toContain('type: openai-compatible');
-
-      await expect(runCli(['preset', 'show', 'missing'])).rejects.toThrow(/Unknown preset/);
+      expect(log.mock.calls.at(-1)?.[0]).toContain('opencode-go');
 
       await runCli(['config-example']);
       expect(log.mock.calls.at(-1)?.[0]).toContain('server:');
@@ -24,7 +19,7 @@ describe('CLI program', () => {
     }
   });
 
-  it('creates configs and imports LiteLLM files', async () => {
+  it('creates configs', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'agentmux-cli-'));
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     try {
@@ -32,24 +27,6 @@ describe('CLI program', () => {
       await runCli(['init', '--config', configPath]);
       expect(existsSync(configPath)).toBe(true);
       expect(log.mock.calls.at(-1)?.[0]).toBe(`Created ${configPath}`);
-
-      const litellmPath = join(dir, 'litellm.yaml');
-      const outputPath = join(dir, 'imported.yaml');
-      writeFileSync(
-        litellmPath,
-        [
-          'model_list:',
-          '  - model_name: chat',
-          '    litellm_params:',
-          '      model: openai/gpt-4.1',
-          '      api_base: https://api.openai.com/v1',
-          ''
-        ].join('\n'),
-        'utf8'
-      );
-      await runCli(['import-litellm', litellmPath, '--output', outputPath]);
-      expect(existsSync(outputPath)).toBe(true);
-      expect(log.mock.calls.at(-1)?.[0]).toBe(`Wrote ${outputPath}`);
     } finally {
       log.mockRestore();
       rmSync(dir, { recursive: true, force: true });
@@ -93,7 +70,7 @@ describe('CLI program', () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     try {
       await main(['node', 'agentmux', 'preset', 'list']);
-      expect(log.mock.calls.at(-1)?.[0]).toContain('openai');
+      expect(log.mock.calls.at(-1)?.[0]).toContain('opencode-go');
     } finally {
       log.mockRestore();
     }

@@ -14,7 +14,7 @@ describe('config', () => {
       expect(config.server.port).toBe(8787);
       expect(config.server.api_key).toMatch(/^agmx_/);
       expect(config.routing.default_strategy).toBe('quota_aware');
-      expect(config.models['deepseek-chat']?.upstreams.length).toBeGreaterThan(0);
+      expect(config.models['deepseek-v4-flash']?.upstreams.length).toBeGreaterThan(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -134,80 +134,25 @@ describe('config', () => {
     }
   });
 
-  it('loads the multi-account example with OpenAI-compatible and Anthropic upstreams', () => {
+  it('loads the default config with OpenCode GO upstreams', () => {
     const envName = 'AGENTMUX_API_KEY';
     const previous = process.env[envName];
     process.env[envName] = 'test-server-key-that-is-long-enough';
     try {
-      const config = loadConfig('examples/multi-account.yaml');
-      expect(config.upstreams.some((upstream) => upstream.type === 'openai-compatible')).toBe(true);
-      expect(config.upstreams.some((upstream) => upstream.type === 'anthropic-messages')).toBe(
-        true
-      );
-      const anthropic = config.upstreams.find((upstream) => upstream.id === 'anthropic-account-a');
-      expect(anthropic?.type).toBe('anthropic-messages');
-      expect(anthropic && 'default_max_tokens' in anthropic).toBe(true);
-      const openai = config.upstreams.find((upstream) => upstream.id === 'openai-project-a');
-      expect(openai?.header_env?.['OpenAI-Project']).toBe('OPENAI_PROJECT_A');
+      const tempDir = mkdtempSync(join(tmpdir(), 'agentmux-config-'));
+      try {
+        writeDefaultConfig(join(tempDir, 'agentmux.yaml'), true);
+        const config = loadConfig(join(tempDir, 'agentmux.yaml'));
+        expect(config.upstreams.every((upstream) => upstream.type === 'openai-compatible')).toBe(
+          true
+        );
+        expect(config.upstreams[0].base_url).toBe('https://opencode.ai/zen/go/v1');
+      } finally {
+        rmSync(tempDir, { recursive: true, force: true });
+      }
     } finally {
       if (previous === undefined) delete process.env[envName];
       else process.env[envName] = previous;
-    }
-  });
-
-  it('loads CLI backend upstreams and expands profile paths', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'agentmux-config-'));
-    try {
-      const path = join(dir, 'agentmux.yaml');
-      writeFileSync(
-        path,
-        [
-          'server:',
-          '  host: 127.0.0.1',
-          '  port: 8787',
-          '  api_key: test-server-key-that-is-long-enough',
-          'database:',
-          `  path: ${join(dir, 'usage.sqlite')}`,
-          'routing:',
-          '  default_strategy: quota_aware',
-          '  retry_attempts: 3',
-          '  request_timeout_seconds: 120',
-          '  cooldown:',
-          '    rate_limit_seconds: 900',
-          '    server_error_seconds: 300',
-          '    timeout_seconds: 180',
-          'models:',
-          '  codex-chat:',
-          '    upstreams: [codex-main]',
-          'upstreams:',
-          '  - id: codex-main',
-          '    type: cli-backend',
-          '    command: codex',
-          '    args: ["exec", "--json"]',
-          '    model_arg: "--model"',
-          '    input: arg',
-          '    output: jsonl',
-          '    env:',
-          '      CODEX_HOME: ~/.codex-main',
-          '    env_unset: [OPENAI_API_KEY]',
-          '    cwd: "~"',
-          '    serialize: true',
-          '    models:',
-          '      codex-chat: gpt-5.4',
-          ''
-        ].join('\n'),
-        'utf8'
-      );
-      const config = loadConfig(path);
-      const upstream = config.upstreams[0];
-      expect(upstream?.type).toBe('cli-backend');
-      if (upstream?.type !== 'cli-backend') throw new Error('expected cli backend');
-      expect(upstream.env?.CODEX_HOME).not.toBe('~/.codex-main');
-      expect(upstream.env?.CODEX_HOME.endsWith('/.codex-main')).toBe(true);
-      expect(upstream.cwd).not.toBe('~');
-      expect(upstream.env_unset).toEqual(['OPENAI_API_KEY']);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

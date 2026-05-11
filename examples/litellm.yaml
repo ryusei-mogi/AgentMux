@@ -1,8 +1,8 @@
 model_list:
   - model_name: deepseek-v4-flash
     litellm_params:
-      model: deepseek/deepseek-chat
-      api_base: https://api.deepseek.com/v1
+      model: deepseek/deepseek-v4-flash
+      api_base: https://api.deepseek.com
       api_key: os.environ/DEEPSEEK_API_KEY
   - model_name: qwen-coder
     litellm_params:

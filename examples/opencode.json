@@ -8,8 +8,8 @@
         "baseURL": "http://127.0.0.1:8787/v1"
       },
       "models": {
-        "deepseek-chat": {
-          "name": "DeepSeek Chat via AgentMux"
+        "deepseek-v4-flash": {
+          "name": "DeepSeek V4 Flash via AgentMux"
         },
         "qwen-coder": {
           "name": "Qwen Coder via AgentMux"
@@ -20,6 +20,6 @@
       }
     }
   },
-  "model": "agentmux/deepseek-chat",
-  "small_model": "agentmux/deepseek-chat"
+  "model": "agentmux/deepseek-v4-flash",
+  "small_model": "agentmux/deepseek-v4-flash"
 }

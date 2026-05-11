@@ -96,7 +96,7 @@ describe('dashboard', () => {
         http_status: 500,
         error_type: 'server_error'
       });
-      expect(data.models).toEqual([{ name: 'test', strategy: 'fallback', upstream_count: 2 }]);
+      expect(data.models).toEqual([{ name: 'test', strategy: 'quota_aware', upstream_count: 2 }]);
     } finally {
       store.close();
       rmSync(dir, { recursive: true, force: true });
@@ -166,7 +166,7 @@ function fixtureConfig(...ids: string[]): AppConfig {
     server: { host: '127.0.0.1', port: 8787 },
     database: { path: ':memory:' },
     routing: {
-      default_strategy: 'fallback',
+      default_strategy: 'quota_aware',
       retry_attempts: 1,
       request_timeout_seconds: 1,
       cooldown: { rate_limit_seconds: 60, server_error_seconds: 60, timeout_seconds: 60 }

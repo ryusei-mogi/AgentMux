@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import { createServer, isIP } from 'node:net';
 import { isAbsolute } from 'node:path';
 import type { ServerType } from '@hono/node-server';
@@ -6,13 +5,7 @@ import { dashboardData } from './dashboard.js';
 import { UsageStore } from './db.js';
 import { loadConfig } from './config.js';
 import { closeHttpServer, healthPayload, startHttpServer } from './server.js';
-import type {
-  AppConfig,
-  UpstreamBudgetConfig,
-  UpstreamConfig,
-  UpstreamState,
-  UpstreamType
-} from './types.js';
+import type { AppConfig, UpstreamBudgetConfig, UpstreamState, UpstreamType } from './types.js';
 import type { DbAdapterFactory } from './db.js';
 
 export type AgentMuxRuntimeState = 'stopped' | 'starting' | 'running' | 'degraded' | 'error';
@@ -87,10 +80,6 @@ export interface MacAppValidationIssue {
     | 'database_path_not_absolute'
     | 'upstream_plaintext_api_key'
     | 'upstream_api_key_env_missing'
-    | 'cli_command_not_absolute'
-    | 'cli_command_not_found'
-    | 'cli_cwd_not_absolute'
-    | 'cli_profile_path_not_absolute'
     | 'config_load_failed'
     | 'secret_env_missing';
   severity: 'error' | 'warning';
@@ -340,10 +329,6 @@ export function validateForMacApp(config: AppConfig): MacAppValidationIssue[] {
 
   config.upstreams.forEach((upstream, index) => {
     const basePath = `upstreams[${index}]`;
-    if (upstream.type === 'cli-backend') {
-      validateCliBackend(upstream, basePath, issues);
-      return;
-    }
     if (upstream.api_key) {
       issues.push(
         issue(
@@ -365,50 +350,6 @@ export function validateForMacApp(config: AppConfig): MacAppValidationIssue[] {
   });
 
   return issues;
-}
-
-function validateCliBackend(
-  upstream: Extract<UpstreamConfig, { type: 'cli-backend' }>,
-  basePath: string,
-  issues: MacAppValidationIssue[]
-): void {
-  if (!isAbsolute(upstream.command)) {
-    issues.push(
-      issue(
-        'cli_command_not_absolute',
-        `${basePath}.command`,
-        `CLI backend ${upstream.id} must use a user-selected absolute executable path.`
-      )
-    );
-  } else if (!existsSync(upstream.command)) {
-    issues.push(
-      issue(
-        'cli_command_not_found',
-        `${basePath}.command`,
-        `CLI backend ${upstream.id} executable was not found.`
-      )
-    );
-  }
-  if (upstream.cwd && !isAbsolute(upstream.cwd)) {
-    issues.push(
-      issue(
-        'cli_cwd_not_absolute',
-        `${basePath}.cwd`,
-        `CLI backend ${upstream.id} cwd must be user-selected and absolute.`
-      )
-    );
-  }
-  Object.entries(upstream.env ?? {}).forEach(([name, value]) => {
-    if (looksLikePathEnv(name) && !isAbsolute(value)) {
-      issues.push(
-        issue(
-          'cli_profile_path_not_absolute',
-          `${basePath}.env.${name}`,
-          `CLI backend ${upstream.id} profile path ${name} must be user-selected and absolute.`
-        )
-      );
-    }
-  });
 }
 
 function issue(
@@ -449,10 +390,6 @@ function upstreamType(config: AppConfig, id: string): UpstreamType {
 
 function isLoopbackHost(host: string): boolean {
   return host === '127.0.0.1' || host === 'localhost' || host === '::1';
-}
-
-function looksLikePathEnv(name: string): boolean {
-  return /(?:_HOME|_DIR|_PATH)$/.test(name);
 }
 
 function applyEnvOverrides(envOverrides: AgentMuxEnvOverrides): () => void {

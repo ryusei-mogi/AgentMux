@@ -6,9 +6,9 @@ import { Command } from 'commander';
 import { stringify } from 'yaml';
 import { createDefaultConfig, loadConfig, writeDefaultConfig } from './config.js';
 import { UsageStore } from './db.js';
-import { importLiteLLMConfig } from './litellm.js';
+
 import { defaultConfigPath } from './paths.js';
-import { listPresetNames, providerPresets } from './presets.js';
+import { listPresetNames } from './presets.js';
 import { startServer } from './server.js';
 import { parseWindow, windowStart } from './time.js';
 
@@ -18,7 +18,7 @@ export function createProgram(): Command {
   program
     .name('agentmux')
     .description('Quota-aware local OpenAI-compatible LLM gateway.')
-    .version('0.6.0');
+    .version('0.7.0');
 
   program
     .command('init')
@@ -86,21 +86,6 @@ export function createProgram(): Command {
   const preset = program.command('preset').description('Show built-in provider presets');
 
   preset.command('list').action(() => console.log(listPresetNames().join('\n')));
-
-  preset.command('show <name>').action((name: string) => {
-    const value = providerPresets[name];
-    if (!value) throw new Error(`Unknown preset: ${name}`);
-    console.log(stringify(value));
-  });
-
-  program
-    .command('import-litellm <input>')
-    .description('Convert a LiteLLM YAML config to agentmux.yaml')
-    .option('-o, --output <path>', 'output path', defaultConfigPath())
-    .action((input: string, options: { output: string }) => {
-      importLiteLLMConfig(input, options.output);
-      console.log(`Wrote ${options.output}`);
-    });
 
   program
     .command('config-example')

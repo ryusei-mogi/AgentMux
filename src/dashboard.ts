@@ -217,7 +217,7 @@ export function renderDashboard(config: AppConfig, store: UsageStore): string {
     <section class="toolbar" aria-label="Dashboard controls">
       <input class="control" id="search" type="search" placeholder="Search upstreams">
       <select class="control" id="state-filter"><option value="">All states</option><option>healthy</option><option>probation</option><option>cooldown</option><option>disabled</option></select>
-      <select class="control" id="type-filter"><option value="">All types</option><option>openai-compatible</option><option>anthropic-messages</option><option>cli-backend</option></select>
+      <select class="control" id="type-filter"><option value="">All types</option><option>openai-compatible</option></select>
       <button class="refresh" id="refresh" type="button">Refresh</button>
     </section>
     <section class="layout">

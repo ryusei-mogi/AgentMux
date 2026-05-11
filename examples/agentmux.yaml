@@ -15,7 +15,7 @@ routing:
     server_error_seconds: 300
     timeout_seconds: 180
 models:
-  deepseek-chat:
+  deepseek-v4-flash:
     upstreams: [opencode-go-a, opencode-go-b, opencode-go-c]
   qwen-coder:
     upstreams: [opencode-go-a, opencode-go-b, opencode-go-c]
@@ -31,7 +31,7 @@ upstreams:
       window: 5h
       limit_usd: 12
     models:
-      deepseek-chat: deepseek-chat
+      deepseek-v4-flash: deepseek-v4-flash
       qwen-coder: qwen-coder
       kimi-k2: kimi-k2
   - id: opencode-go-b
@@ -43,7 +43,7 @@ upstreams:
       window: 5h
       limit_usd: 12
     models:
-      deepseek-chat: deepseek-chat
+      deepseek-v4-flash: deepseek-v4-flash
       qwen-coder: qwen-coder
       kimi-k2: kimi-k2
   - id: opencode-go-c
@@ -55,6 +55,6 @@ upstreams:
       window: 5h
       limit_usd: 12
     models:
-      deepseek-chat: deepseek-chat
+      deepseek-v4-flash: deepseek-v4-flash
       qwen-coder: qwen-coder
       kimi-k2: kimi-k2
