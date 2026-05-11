@@ -1,6 +1,6 @@
 # AgentMux
 
-AgentMux is a local OpenAI-compatible LLM gateway for coding agents. It multiplexes requests from OpenCode, Claude Code-compatible tools, Codex-like CLIs, Cline, Continue, and other OpenAI-compatible clients across multiple providers, models, and API keys.
+AgentMux is a dedicated multi-account manager for OpenCode GO. It multiplexes requests from OpenCode across multiple OpenCode GO subscription accounts, rotating between them to avoid rate limits and quota exhaustion.
 
 It tracks local usage, estimates remaining quota, avoids unhealthy upstreams, and falls back when rate limits or provider errors occur.
 
@@ -15,17 +15,15 @@ If you are setting up AgentMux for the first time, start with the documentation 
 
 ## Features
 
-- OpenAI-compatible `GET /v1/models`, `POST /v1/chat/completions`, and `POST /v1/responses` (Codex CLI `wire_api="responses"`)
+- OpenAI-compatible `GET /v1/models` and `POST /v1/chat/completions`
 - Non-streaming and streaming chat completion proxying
-- Multiple OpenAI-compatible upstreams and model aliases
-- Native Anthropic Messages upstreams exposed through the local OpenAI-compatible API
-- Local CLI backend upstreams for Codex CLI, Claude Code, and other text-producing AI CLIs
+- Multiple OpenCode GO account routing and model aliases
 - Per-upstream custom headers and header environment variables for provider projects, orgs, and attribution
 - SQLite usage tracking for tokens, estimated cost, latency, and status
-- Routing strategies: `least_used`, `round_robin`, `weighted_round_robin`, `cheapest`, `fallback`, `quota_aware`
+- Routing strategies: `least_used`, `round_robin`, `quota_aware`
 - Circuit breaker states: `healthy`, `cooldown`, `probation`, `disabled`
 - Automatic cooldown recovery and retry on 429, 402, timeout, 5xx, and quota errors
-- CLI status, upstream enable/disable, usage windows, config init, LiteLLM import, and provider presets
+- CLI status, upstream enable/disable, usage windows, config init, and provider presets
 - Local dashboard at `/dashboard`
 - Health check at `/health`
 
@@ -38,7 +36,7 @@ npm install -g @ryusei-mogi/agentmux
 Or install the GitHub release tarball directly:
 
 ```bash
-npm install -g https://github.com/ryusei-mogi/AgentMux/releases/download/v0.6.0/ryusei-mogi-agentmux-0.6.0.tgz
+npm install -g https://github.com/ryusei-mogi/AgentMux/releases/download/v0.7.0/ryusei-mogi-agentmux-0.7.0.tgz
 ```
 
 Or with Homebrew:
@@ -47,7 +45,7 @@ Or with Homebrew:
 brew install ryusei-mogi/AgentMux/agentmux
 ```
 
-The unscoped npm registry name `agentmux` is owned by a different project, so use the scoped package name. The package still exposes an `oc-router` binary alias for early users, but new docs use `agentmux`.
+The unscoped npm registry name `agentmux` is owned by a different project, so use the scoped package name.
 
 For local development:
 
@@ -75,7 +73,7 @@ source ~/.agentmux/accounts.env
 agentmux serve --config ~/.agentmux/agentmux.yaml
 ```
 
-Point OpenCode or any OpenAI-compatible client at:
+Point OpenCode at:
 
 ```text
 base_url: http://127.0.0.1:8787/v1
@@ -109,34 +107,6 @@ curl http://127.0.0.1:8787/v1/chat/completions \
   -d '{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"hello"}]}'
 ```
 
-### Responses API (Codex CLI)
-
-Codex CLI 0.130.0+ uses `POST /v1/responses` with `wire_api="responses"`. AgentMux translates Responses API requests into chat completions internally:
-
-```bash
-curl http://127.0.0.1:8787/v1/responses \
-  -H "Authorization: Bearer $AGENTMUX_API_KEY" \
-  -H 'Content-Type: application/json' \
-  -d '{"model":"deepseek-v4-flash","input":"hello","instructions":"Be concise."}'
-```
-
-Codex configuration example (`~/.codex/config.toml`):
-
-```toml
-model = "deepseek-v4-flash"
-model_provider = "agentmux"
-
-[model_providers.agentmux]
-name = "AgentMux"
-base_url = "http://127.0.0.1:8787/v1"
-wire_api = "responses"
-experimental_bearer_token = "local-agentmux-key"
-```
-
-Non-streaming responses return a Responses API JSON shape with `object: "response"`, `output`, `output_text`, and `usage` fields. Streaming responses emit `response.created`, `response.output_item.added`, `response.content_part.added`, `response.output_text.delta`, `response.output_text.done`, and `response.completed` SSE events.
-
-Streaming fallback works before a stream starts. If an upstream returns 429 or 5xx before sending bytes, AgentMux retries another upstream. After streaming has started, AgentMux cannot switch providers mid-generation; the next LLM request will be routed again.
-
 ## Configuration
 
 See [examples/agentmux.yaml](examples/agentmux.yaml). The default config shape is:
@@ -160,83 +130,6 @@ routing:
     timeout_seconds: 180
 ```
 
-## Multi-Key and Multi-Provider Routing
-
-AgentMux can register multiple official API upstreams and route across them. This includes OpenAI API keys from different projects or organizations, Anthropic API keys, OpenRouter, DeepSeek, and other OpenAI-compatible providers. It does not automate browser ChatGPT or Claude web accounts, cookies, or sessions.
-
-See [examples/multi-account.yaml](examples/multi-account.yaml) for a config that combines:
-
-- `OPENAI_API_KEY_A` and `OPENAI_API_KEY_B` with `OpenAI-Organization` and `OpenAI-Project` headers
-- `ANTHROPIC_API_KEY_A` and `ANTHROPIC_API_KEY_B` through native Anthropic Messages API upstreams
-- OpenRouter and DeepSeek fallback upstreams
-
-Anthropic upstreams use `type: anthropic-messages` and are converted to and from AgentMux's local OpenAI-compatible `/v1/chat/completions` API:
-
-```yaml
-models:
-  claude-sonnet:
-    upstreams: [anthropic-account-a, anthropic-account-b]
-    strategy: quota_aware
-upstreams:
-  - id: anthropic-account-a
-    type: anthropic-messages
-    base_url: https://api.anthropic.com/v1
-    api_key_env: ANTHROPIC_API_KEY_A
-    anthropic_version: '2023-06-01'
-    default_max_tokens: 4096
-    models:
-      claude-sonnet: claude-sonnet-4-5
-```
-
-Provider-side limits still apply. If two API keys share the same provider organization, project, or billing quota, AgentMux can observe failures and route around them, but it cannot multiply provider-enforced limits.
-
-## CLI Backend Routing
-
-AgentMux can also route to local AI CLIs through `type: cli-backend`. This is for logged-in CLI environments, not browser cookie extraction. Keep each subscription/profile isolated with the CLI's own config directory mechanism, such as `CODEX_HOME` for Codex CLI or `CLAUDE_CONFIG_DIR` for Claude Code.
-
-CLI backend responses are wrapped as local OpenAI-compatible chat completions. Streaming requests are buffered in the initial implementation: AgentMux waits for the CLI to finish, emits one SSE content chunk, then emits `[DONE]`.
-
-```yaml
-models:
-  codex-chat:
-    upstreams: [codex-main, codex-sub]
-    strategy: quota_aware
-  claude-code:
-    upstreams: [claude-main, claude-sub]
-    strategy: fallback
-
-upstreams:
-  - id: codex-main
-    type: cli-backend
-    command: codex
-    args: ['exec', '--json', '--color', 'never', '--skip-git-repo-check']
-    model_arg: '--model'
-    input: arg
-    output: jsonl
-    env:
-      CODEX_HOME: ~/.codex-main
-    env_unset: [OPENAI_API_KEY]
-    serialize: true
-    models:
-      codex-chat: gpt-5.4
-
-  - id: claude-main
-    type: cli-backend
-    command: claude
-    args: ['-p', '--output-format', 'json', '--no-session-persistence']
-    model_arg: '--model'
-    input: arg
-    output: json
-    env:
-      CLAUDE_CONFIG_DIR: ~/.claude-main
-    env_unset: [ANTHROPIC_API_KEY]
-    serialize: true
-    models:
-      claude-code: sonnet
-```
-
-Use `serialize: true` for CLIs that store mutable profile state in one directory. AgentMux will run one request at a time for that upstream while still allowing other upstreams to run independently.
-
 ## CLI
 
 ```bash
@@ -249,7 +142,6 @@ agentmux upstream enable opencode-go-a --config ~/.agentmux/agentmux.yaml
 agentmux usage today --config ~/.agentmux/agentmux.yaml
 agentmux usage window 5h --config ~/.agentmux/agentmux.yaml
 agentmux preset list
-agentmux import-litellm litellm.yaml -o agentmux.yaml
 ```
 
 ## Dashboard and Health
@@ -258,14 +150,6 @@ agentmux import-litellm litellm.yaml -o agentmux.yaml
 - Health: `http://127.0.0.1:8787/health`
 
 The dashboard shows today's request volume, cost estimate, token usage, latency, errors, cooldowns, and upstream state.
-
-## LiteLLM Import
-
-```bash
-agentmux import-litellm litellm.yaml -o agentmux.yaml
-```
-
-The importer maps LiteLLM `model_list` entries to OpenAI-compatible upstreams. Review generated environment variable names before running the gateway.
 
 ## OpenCode Example
 

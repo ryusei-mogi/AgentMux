@@ -2,7 +2,7 @@
 
 This guide explains how to install, configure, operate, and troubleshoot AgentMux in detail.
 
-AgentMux is a local OpenAI-compatible gateway. You run it on your machine, point your coding agents at `http://127.0.0.1:8787/v1`, and let AgentMux choose which upstream account or provider should handle each request.
+AgentMux is a dedicated multi-account manager for OpenCode GO. You run it on your machine, point OpenCode at `http://127.0.0.1:8787/v1`, and let AgentMux rotate between OpenCode GO subscription accounts.
 
 ## Table of Contents
 
@@ -20,7 +20,6 @@ AgentMux is a local OpenAI-compatible gateway. You run it on your machine, point
 - [Client Setup](#client-setup)
 - [CLI Reference](#cli-reference)
 - [Dashboard and Health Checks](#dashboard-and-health-checks)
-- [LiteLLM Import](#litellm-import)
 - [Provider Presets](#provider-presets)
 - [Common Recipes](#common-recipes)
 - [Troubleshooting](#troubleshooting)
@@ -36,7 +35,7 @@ Typical use cases:
 - Rotate between multiple API keys for the same provider.
 - Route one logical model name to several upstream providers.
 - Avoid accounts that are rate-limited, over budget, or temporarily failing.
-- Keep OpenCode, Claude Code-compatible tools, Codex-like CLIs, Cline, Continue, or curl pointed at one stable local endpoint.
+- Keep multiple OpenCode GO accounts behind one stable local endpoint.
 - Track request counts, errors, latency, token usage, and estimated cost in SQLite.
 
 AgentMux currently exposes:
@@ -45,7 +44,6 @@ AgentMux currently exposes:
 - `GET /dashboard`
 - `GET /v1/models`
 - `POST /v1/chat/completions`
-- `POST /v1/responses`
 
 The `/v1/*` endpoints require `Authorization: Bearer <local AgentMux API key>` unless you explicitly set `server.allow_unauthenticated: true`.
 
@@ -65,7 +63,7 @@ AgentMux requires Node.js `>=22.13`.
 ### GitHub Release Tarball
 
 ```bash
-npm install -g https://github.com/ryusei-mogi/AgentMux/releases/download/v0.6.0/ryusei-mogi-agentmux-0.6.0.tgz
+npm install -g https://github.com/ryusei-mogi/AgentMux/releases/download/v0.7.0/ryusei-mogi-agentmux-0.7.0.tgz
 agentmux --version
 ```
 
@@ -189,8 +187,6 @@ http://127.0.0.1:8787/dashboard
 A client is anything that sends OpenAI-compatible requests to AgentMux. Examples:
 
 - OpenCode
-- Cline
-- Continue
 - Custom scripts using `curl`, `fetch`, or an OpenAI SDK configured with a custom base URL
 - Any tool that supports an OpenAI-compatible `base_url`
 
@@ -216,7 +212,7 @@ Clients request `deepseek-v4-flash`. AgentMux then chooses one of the upstreams 
 
 ### Upstream
 
-An upstream is a real OpenAI-compatible provider endpoint plus credentials and model mapping:
+An upstream is an OpenCode GO account endpoint plus credentials and model mapping. AgentMux supports only one upstream type: `openai-compatible`. For OpenCode GO accounts, the `base_url` is always `https://opencode.ai/zen/go/v1`.
 
 ```yaml
 upstreams:
@@ -384,8 +380,8 @@ Fields:
 ```yaml
 models:
   deepseek-v4-flash:
-    upstreams: [deepseek-main, openrouter-fallback]
-    strategy: fallback
+    upstreams: [opencode-go-a, opencode-go-b]
+    strategy: round_robin
 ```
 
 Fields:
@@ -400,18 +396,16 @@ Every upstream referenced in a route must exist in `upstreams`.
 
 ```yaml
 upstreams:
-  - id: deepseek-main
+  - id: opencode-go-a
     type: openai-compatible
-    base_url: https://api.deepseek.com
-    api_key_env: DEEPSEEK_API_KEY
-    strategy_weight: 1
+    base_url: https://opencode.ai/zen/go/v1
+    api_key_env: OPENCODE_GO_A_KEY
     budget:
       window: daily
       limit_usd: 5
     pricing:
-      input_per_million: 0.14
-      output_per_million: 0.28
-      cached_input_per_million: 0.0028
+      input_per_million: 0
+      output_per_million: 0
     models:
       deepseek-v4-flash: deepseek-v4-flash
 ```
@@ -419,11 +413,10 @@ upstreams:
 Fields:
 
 - `id`: Unique upstream identifier used by routes and CLI commands.
-- `type`: Currently only `openai-compatible`.
-- `base_url`: Provider base URL ending at `/v1` or equivalent.
-- `api_key_env`: Environment variable containing the provider API key.
-- `api_key`: Literal provider API key. Prefer `api_key_env`.
-- `strategy_weight`: Weight used by `weighted_round_robin`.
+- `type`: Always `openai-compatible`. This is the only supported upstream type.
+- `base_url`: OpenCode GO base URL: `https://opencode.ai/zen/go/v1`.
+- `api_key_env`: Environment variable containing the upstream API key.
+- `api_key`: Literal upstream API key. Prefer `api_key_env`.
 - `budget.window`: Budget window. Supported values are `daily`, `weekly`, `monthly`, or a duration such as `5h`.
 - `budget.limit_usd`: Estimated cost ceiling for the window.
 - `pricing.input_per_million`: Input token cost in USD per 1M tokens.
@@ -447,8 +440,6 @@ Example:
 
 ```bash
 export AGENTMUX_API_KEY="replace-with-a-random-local-key"
-export DEEPSEEK_API_KEY="sk-..."
-export OPENROUTER_API_KEY="sk-or-..."
 export OPENCODE_GO_A_KEY="sk-..."
 export OPENCODE_GO_B_KEY="sk-..."
 export OPENCODE_GO_C_KEY="sk-..."
@@ -480,19 +471,6 @@ If no candidate remains, AgentMux returns `503`.
 
 ## Routing Strategies
 
-### `fallback`
-
-Preserves the order from `models.<model>.upstreams`.
-
-Use this when you have a preferred primary provider and one or more backups:
-
-```yaml
-models:
-  deepseek-v4-flash:
-    strategy: fallback
-    upstreams: [deepseek-main, openrouter-backup]
-```
-
 ### `least_used`
 
 Orders upstreams by the number of recorded requests in the upstream's budget window.
@@ -505,34 +483,6 @@ Rotates between available upstreams. The cursor is stored in SQLite, so rotation
 
 Use this for roughly even distribution across equivalent accounts.
 
-### `weighted_round_robin`
-
-Like `round_robin`, but `strategy_weight` controls relative preference.
-
-Example:
-
-```yaml
-upstreams:
-  - id: fast-account
-    strategy_weight: 2
-  - id: slower-account
-    strategy_weight: 0.5
-```
-
-AgentMux expands weights internally and then rotates. Each upstream still appears at most once in the candidate order for a single request.
-
-### `cheapest`
-
-Orders by configured pricing:
-
-```text
-input_per_million + output_per_million
-```
-
-If pricing is missing, the upstream is treated as cost `0`.
-
-Use this only when you have filled in realistic `pricing` values.
-
 ### `quota_aware`
 
 Scores candidates using:
@@ -543,7 +493,7 @@ Scores candidates using:
 - latency
 - configured cost
 
-This is the default. It is a good fit for mixed provider and multi-account pools.
+This is the default. It is a good fit for OpenCode GO multi-account pools.
 
 ## Budgets and Pricing
 
@@ -665,53 +615,6 @@ curl -N http://127.0.0.1:8787/v1/chat/completions \
   }'
 ```
 
-### Responses API (Codex CLI)
-
-AgentMux exposes `POST /v1/responses` for clients that use the OpenAI Responses API wire format, such as Codex CLI 0.130.0+.
-
-Non-streaming example:
-
-```bash
-curl http://127.0.0.1:8787/v1/responses \
-  -H "Authorization: Bearer $AGENTMUX_API_KEY" \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "model": "deepseek-v4-flash",
-    "input": "What is AgentMux?",
-    "instructions": "Be concise."
-  }'
-```
-
-Streaming example:
-
-```bash
-curl -N http://127.0.0.1:8787/v1/responses \
-  -H "Authorization: Bearer $AGENTMUX_API_KEY" \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "model": "deepseek-v4-flash",
-    "stream": true,
-    "input": "Write a haiku about code."
-  }'
-```
-
-Supported request fields: `model` (required), `instructions` (→ system message), `input` (string or array of `{"type":"input_text","text":"..."}` parts → user message), `stream`, `temperature`, `top_p`, `max_output_tokens` (→ `max_tokens`).
-
-Non-streaming responses follow the Responses API shape: `object: "response"`, `status: "completed"`, `output` array, `output_text` string, and `usage` fields. Streaming responses emit SSE events: `response.created`, `response.output_item.added`, `response.content_part.added`, `response.output_text.delta`, `response.output_text.done`, `response.completed`, and `data: [DONE]`.
-
-Codex CLI configuration example (`~/.codex/config.toml` or `CODEX_HOME/config.toml`):
-
-```toml
-model = "deepseek-v4-flash"
-model_provider = "agentmux"
-
-[model_providers.agentmux]
-name = "AgentMux"
-base_url = "http://127.0.0.1:8787/v1"
-wire_api = "responses"
-experimental_bearer_token = "local-agentmux-key"
-```
-
 ## Client Setup
 
 ### OpenCode
@@ -741,7 +644,7 @@ Example config: `examples/opencode.json`.
 
 Add the AgentMux local API key to OpenCode through `/connect` for the `agentmux` provider, or store the same value as `AGENTMUX_API_KEY` in OpenCode's auth store.
 
-### Continue, Cline, and Other OpenAI-Compatible Clients
+### Other OpenAI-Compatible Clients
 
 Use these connection values:
 
@@ -859,26 +762,10 @@ agentmux usage window 24h --config ~/.agentmux/agentmux.yaml
 
 ### `agentmux preset list`
 
-List built-in provider presets:
+List available provider presets:
 
 ```bash
 agentmux preset list
-```
-
-### `agentmux preset show`
-
-Print a preset as YAML:
-
-```bash
-agentmux preset show deepseek
-```
-
-### `agentmux import-litellm`
-
-Convert a LiteLLM YAML file:
-
-```bash
-agentmux import-litellm litellm.yaml --output agentmux.yaml
 ```
 
 ### `agentmux config-example`
@@ -915,32 +802,6 @@ http://127.0.0.1:8787/dashboard
 
 The dashboard is local HTML rendered by AgentMux. It shows request volume, token usage, cost estimates, latency, errors, cooldowns, and upstream state.
 
-## LiteLLM Import
-
-Given:
-
-```yaml
-model_list:
-  - model_name: deepseek-v4-flash
-    litellm_params:
-      model: deepseek/deepseek-v4-flash
-      api_base: https://api.deepseek.com
-      api_key: os.environ/DEEPSEEK_API_KEY
-```
-
-Run:
-
-```bash
-agentmux import-litellm litellm.yaml --output agentmux.yaml
-```
-
-Then review:
-
-- generated upstream IDs
-- generated environment variable names
-- model mappings
-- pricing and budget settings, if you want cost-aware routing
-
 ## Provider Presets
 
 List presets:
@@ -949,26 +810,15 @@ List presets:
 agentmux preset list
 ```
 
-Current presets:
+Available presets:
 
-- `opencode-go`
-- `deepseek`
-- `openrouter`
-- `kimi`
-- `qwen`
-- `zen-balance`
-
-Show one preset:
-
-```bash
-agentmux preset show openrouter
-```
+- `opencode-go` — OpenCode GO account configuration
 
 Presets are snippets for upstream configuration. You still need to choose an `id`, configure `models`, and provide credentials.
 
 ## Common Recipes
 
-### Three Accounts for the Same Provider
+### Three OpenCode GO Accounts
 
 ```yaml
 models:
@@ -993,56 +843,6 @@ upstreams:
     type: openai-compatible
     base_url: https://opencode.ai/zen/go/v1
     api_key_env: ACCOUNT_C_KEY
-    models:
-      deepseek-v4-flash: deepseek-v4-flash
-```
-
-### Primary Provider with Backup Provider
-
-```yaml
-models:
-  deepseek-v4-flash:
-    strategy: fallback
-    upstreams: [deepseek-main, openrouter-backup]
-
-upstreams:
-  - id: deepseek-main
-    type: openai-compatible
-    base_url: https://api.deepseek.com
-    api_key_env: DEEPSEEK_API_KEY
-    models:
-      deepseek-v4-flash: deepseek-v4-flash
-  - id: openrouter-backup
-    type: openai-compatible
-    base_url: https://openrouter.ai/api/v1
-    api_key_env: OPENROUTER_API_KEY
-    models:
-      deepseek-v4-flash: deepseek/deepseek-v4-flash
-```
-
-### Cost-Aware Routing
-
-```yaml
-routing:
-  default_strategy: cheapest
-  retry_attempts: 3
-  request_timeout_seconds: 120
-  cooldown:
-    rate_limit_seconds: 900
-    server_error_seconds: 300
-    timeout_seconds: 180
-
-upstreams:
-  - id: cheap
-    pricing:
-      input_per_million: 0.2
-      output_per_million: 0.8
-    models:
-      deepseek-v4-flash: deepseek-v4-flash
-  - id: expensive-fast
-    pricing:
-      input_per_million: 1
-      output_per_million: 4
     models:
       deepseek-v4-flash: deepseek-v4-flash
 ```
@@ -1133,13 +933,13 @@ curl http://127.0.0.1:8787/health
 If an upstream contains:
 
 ```yaml
-api_key_env: DEEPSEEK_API_KEY
+api_key_env: OPENCODE_GO_A_KEY
 ```
 
 then run:
 
 ```bash
-export DEEPSEEK_API_KEY="sk-..."
+export OPENCODE_GO_A_KEY="sk-..."
 ```
 
 or load your env file before starting AgentMux.
