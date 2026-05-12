@@ -45,7 +45,7 @@ jobs:
 
       - name: Upload test and coverage reports
         if: ${{ always() && matrix.node-version == 22 }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: test-and-coverage-reports-node-22
           path: |
